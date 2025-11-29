@@ -1,0 +1,17 @@
+{
+  "arch": "amd64",
+  "distribution":"noble",
+  "path": "./x86_64-linux-gnu",
+  "cachePath": "./cache",
+  "packages":[
+    "build-essential"
+  ],
+  "sources":[
+    {
+      "uri": "https://archive.ubuntu.com/ubuntu/",
+      "components":[
+        "main"
+      ]
+    }
+  ]
+}
