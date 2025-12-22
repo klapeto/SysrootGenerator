@@ -54,7 +54,7 @@ namespace SysrootGenerator
 
 				Directory.CreateDirectory(targetDir);
 
-				InstallPackages(configuration!, packagesToInstall);
+				InstallPackages(configuration, packagesToInstall.ToArray());
 				CreateSymbolicLinks(configuration!);
 			}
 			catch (Exception ex)
@@ -87,7 +87,7 @@ namespace SysrootGenerator
 			Console.WriteLine("  SysrootGenerator --config-file=./config.json");
 		}
 
-		private static void InstallPackages(Configuration config, IEnumerable<Package> packages)
+		private static void InstallPackages(Configuration config, Package[] packages)
 		{
 			var packagesPath = Path.Combine(config.CachePath!, "packages");
 			Directory.CreateDirectory(packagesPath);
@@ -97,9 +97,11 @@ namespace SysrootGenerator
 
 			using var md5 = MD5.Create();
 
+			var i = 0;
+			var total = packages.Length;
 			foreach (var package in packages)
 			{
-				Logger.Info($"Installing package: {package.Name}");
+				Logger.Info($"Installing package: {package.Name} ({i++}/{total})");
 				var uri = new Uri(package.Uri);
 				var debPath = Path.Combine(packagesPath, $"{uri.Segments.Last()}");
 				DownloadIfNotExist(uri, debPath);
@@ -149,7 +151,8 @@ namespace SysrootGenerator
 		private static void ResolveDependencies(
 			Package package,
 			IReadOnlyDictionary<string, Package> availablePackages,
-			Dictionary<string, Package> packagesToInstall)
+			Dictionary<string, Package> packagesToInstall,
+			HashSet<string> missingPackages)
 		{
 			packagesToInstall.TryAdd(package.Name, package);
 
@@ -157,7 +160,8 @@ namespace SysrootGenerator
 			{
 				if (!availablePackages.TryGetValue(dependency, out var dependentPackage))
 				{
-					throw new Exception($"Dependency '{dependency}' not found (Needed by '{package.Name}')");
+					missingPackages.Add(dependency);
+					continue;
 				}
 
 				if (!packagesToInstall.TryAdd(dependentPackage.Name, dependentPackage))
@@ -165,7 +169,7 @@ namespace SysrootGenerator
 					continue;
 				}
 
-				ResolveDependencies(dependentPackage, availablePackages, packagesToInstall);
+				ResolveDependencies(dependentPackage, availablePackages, packagesToInstall, missingPackages);
 			}
 		}
 
@@ -174,6 +178,7 @@ namespace SysrootGenerator
 			IReadOnlyDictionary<string, Package> packages)
 		{
 			var packagesToInstall = new Dictionary<string, Package>();
+			var missingPackages = new HashSet<string>();
 
 			foreach (var packageName in config.Packages!)
 			{
@@ -182,7 +187,36 @@ namespace SysrootGenerator
 					throw new Exception($"Dependency {packageName} not found");
 				}
 
-				ResolveDependencies(dependentPackage, packages, packagesToInstall);
+				ResolveDependencies(dependentPackage, packages, packagesToInstall, missingPackages);
+			}
+
+			while (missingPackages.Count > 0)
+			{
+				var newMissingPackages = new HashSet<string>();
+				foreach (var missingPackage in missingPackages)
+				{
+					var providedBy = packagesToInstall.Values.FirstOrDefault(p => p.Provides.Contains(missingPackage));
+					if (providedBy != null)
+					{
+						Logger.Info($"Package '{missingPackage}' is provided by '{providedBy.Name}'. Skipping.");
+					}
+					else
+					{
+						var extraPackage = packages.Values.FirstOrDefault(p => p.Provides.Contains(missingPackage));
+						if (extraPackage != null)
+						{
+							Logger.Info($"Additional Package '{extraPackage.Name}' needs to be installed because it provides dependency for '{missingPackage}'");
+							ResolveDependencies(extraPackage, packages, packagesToInstall, newMissingPackages);
+
+							if (newMissingPackages.Contains(missingPackage))
+							{
+								throw new Exception($"Could not find: {missingPackage}");
+							}
+						}
+					}
+				}
+
+				missingPackages = newMissingPackages;
 			}
 
 			return packagesToInstall.Values;
@@ -192,11 +226,11 @@ namespace SysrootGenerator
 		{
 			if (File.Exists(path))
 			{
-				Logger.Info($"File '{path}' is cached. Not downloading.");
+				Logger.Verbose($"File '{path}' is cached. Not downloading.");
 				return;
 			}
 
-			Logger.Info($"Downloading '{uri}' to '{path}'");
+			Logger.Verbose($"Downloading '{uri}' to '{path}'");
 			using var client = new HttpClient(Handler, false);
 
 			var response = client.GetAsync(uri).Result;
@@ -232,7 +266,17 @@ namespace SysrootGenerator
 				}
 			}
 
-			return packages.ToDictionary(k => k.Name, v => v);
+			var dictionary = new Dictionary<string, Package>();
+
+			foreach (var package in packages)
+			{
+				if (!dictionary.TryAdd(package.Name, package))
+				{
+					Logger.Warning($"Package '{package.Name}' already exists in database. Skipping.");
+				}
+			}
+
+			return dictionary;
 		}
 
 		private static void CreateSymbolicLinks(Configuration config)

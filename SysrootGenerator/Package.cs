@@ -17,19 +17,17 @@
 //
 // **********************************************************************
 
-using System.Collections.Generic;
-using System.Linq;
-
 namespace SysrootGenerator
 {
 	public class Package
 	{
-		public Package(string name, string uri, string md5Sum, string depends)
+		public Package(string name, string uri, string md5Sum, string depends, string provides)
 		{
 			Name = name;
 			Uri = uri;
 			Md5Sum = md5Sum;
 			Depends = ParseDependencies(depends).Select(s => s.Split(':').First()).ToArray();
+			Provides = ParseDependencies(provides).Select(s => s.Split(':').First()).ToArray();
 		}
 
 		public string Name { get; }
@@ -38,7 +36,34 @@ namespace SysrootGenerator
 
 		public string[] Depends { get; }
 
+		public string[] Provides { get; }
+
 		public string Uri { get; }
+
+		public override bool Equals(object? obj)
+		{
+			if (obj is null)
+			{
+				return false;
+			}
+
+			if (ReferenceEquals(this, obj))
+			{
+				return true;
+			}
+
+			if (obj.GetType() != GetType())
+			{
+				return false;
+			}
+
+			return Equals((Package)obj);
+		}
+
+		public override int GetHashCode()
+		{
+			return HashCode.Combine(Name, Md5Sum);
+		}
 
 		private static IEnumerable<string> ParseDependencies(string dependencies)
 		{
@@ -47,6 +72,7 @@ namespace SysrootGenerator
 				if (dependency.Contains('|'))
 				{
 					yield return dependency.Split('|').First().Trim();
+
 					continue;
 				}
 
@@ -59,6 +85,11 @@ namespace SysrootGenerator
 					yield return dependency.Trim();
 				}
 			}
+		}
+
+		private bool Equals(Package other)
+		{
+			return Name == other.Name && Md5Sum == other.Md5Sum;
 		}
 	}
 }

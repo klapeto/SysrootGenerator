@@ -17,9 +17,6 @@
 //
 // **********************************************************************
 
-using System;
-using System.Collections.Generic;
-using System.IO;
 using System.IO.Compression;
 
 namespace SysrootGenerator
@@ -36,16 +33,23 @@ namespace SysrootGenerator
 			var filename = string.Empty;
 			var md5sum = string.Empty;
 			var depends = string.Empty;
+			var provides = string.Empty;
+
 			while (!reader.EndOfStream)
 			{
 				var line = reader.ReadLine();
-				if (line == null) yield break;
+
+				if (line == null)
+				{
+					yield break;
+				}
 
 				if (string.IsNullOrEmpty(line))
 				{
 					if (!string.IsNullOrEmpty(name))
 					{
-						yield return new Package(name, $"{baseUri}/{filename}", md5sum, depends);
+						yield return new Package(name, $"{baseUri}/{filename}", md5sum, depends, provides);
+
 						name = string.Empty;
 					}
 
@@ -53,8 +57,15 @@ namespace SysrootGenerator
 				}
 
 				var separator = line.IndexOf(':');
+
+				if (separator == -1)
+				{
+					continue;
+				}
+
 				var fieldName = line[..separator];
 				var rest = line[(separator + 1)..].Trim();
+
 				switch (fieldName)
 				{
 					case "Package":
@@ -68,6 +79,9 @@ namespace SysrootGenerator
 						break;
 					case "MD5sum":
 						md5sum = rest.Trim();
+						break;
+					case "Provides":
+						provides = rest.Trim();
 						break;
 				}
 			}

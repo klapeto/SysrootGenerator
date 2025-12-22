@@ -17,12 +17,20 @@
 //
 // **********************************************************************
 
-using System;
-
 namespace SysrootGenerator
 {
 	internal static class Logger
 	{
+		public static bool EnableVerbose { get; set; }
+
+		public static void Verbose(string message, Exception? exception = null)
+		{
+			if (EnableVerbose)
+			{
+				Console.Error.WriteLine($"[Verbose] {message} {exception?.Message}");
+			}
+		}
+
 		public static void Error(string message, Exception? exception = null)
 		{
 			Console.Error.WriteLine($"[Error] {message} {exception?.Message}");

@@ -69,6 +69,8 @@ namespace SysrootGenerator
 				};
 			}
 
+			Logger.EnableVerbose = !string.IsNullOrEmpty(rootConfig.GetSection("verbose").Value);
+
 			if (ValidateConfig(draftConfig))
 			{
 				config = draftConfig;

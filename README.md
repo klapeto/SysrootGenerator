@@ -8,16 +8,17 @@ The tool can be configured via command-line arguments or a JSON configuration fi
 
 ### Command Line Arguments
 
-| Option | Description |
-| :--- | :--- |
-| `--path` | **Required.** The target directory where the sysroot will be created. |
-| `--distribution` | **Required.** The distribution name (e.g., `bookworm`, `focal`, `jammy`). |
-| `--packages` | **Required.** Comma-separated list of packages to install. |
-| `--sources` | **Required.** Space-separated list of sources. Format: `uri\|comp1,comp2`. |
-| `--arch` | Target architecture (e.g., `amd64`, `arm64`, `armhf`). Default: `amd64`. |
-| `--cache-path` | Path for downloaded packages. Default: `<path>/tmp`. |
-| `--config-file`| Path to a JSON file containing the configuration. |
-| `--help` | Show help information. |
+| Option           | Description                                                                |
+|:-----------------|:---------------------------------------------------------------------------|
+| `--path`         | **Required.** The target directory where the sysroot will be created.      |
+| `--distribution` | **Required.** The distribution name (e.g., `bookworm`, `focal`, `jammy`).  |
+| `--packages`     | **Required.** Comma-separated list of packages to install.                 |
+| `--sources`      | **Required.** Space-separated list of sources. Format: `uri\|comp1,comp2`. |
+| `--arch`         | Target architecture (e.g., `amd64`, `arm64`, `armhf`). Default: `amd64`.   |
+| `--cache-path`   | Path for downloaded packages. Default: `<path>/tmp`.                       |
+| `--config-file`  | Path to a JSON file containing the configuration.                          |
+| `--verbose`      | Enable verbose logging.                                                    |
+| `--help`         | Show help information.                                                     |
 
 ### Examples
 
