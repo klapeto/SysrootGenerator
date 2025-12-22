@@ -93,15 +93,23 @@ namespace SysrootGenerator
 			Directory.CreateDirectory(packagesPath);
 
 			var tmpDir = Path.Combine(config.CachePath!, "tmp");
-			Directory.CreateDirectory(tmpDir);
 
 			using var md5 = MD5.Create();
+
+			var tarFile = Path.Combine(tmpDir, "data.tar");
 
 			var i = 0;
 			var total = packages.Length;
 			foreach (var package in packages)
 			{
 				Logger.Info($"Installing package: {package.Name} ({i++}/{total})");
+
+				if (Directory.Exists(tmpDir))
+				{
+					Directory.Delete(tmpDir, true);
+				}
+				Directory.CreateDirectory(tmpDir);
+
 				var uri = new Uri(package.Uri);
 				var debPath = Path.Combine(packagesPath, $"{uri.Segments.Last()}");
 				DownloadIfNotExist(uri, debPath);
@@ -129,22 +137,18 @@ namespace SysrootGenerator
 
 				if (file.EndsWith(".zst"))
 				{
-					ArchiveHelpers.ExtractZstd(file, config.Path!);
+					ArchiveHelpers.DecompressZstd(file, tarFile);
 				}
 				else if (file.EndsWith(".xz"))
 				{
-					ArchiveHelpers.ExtractXz(file, config.Path!);
+					ArchiveHelpers.DecompressXz(file, tarFile);
 				}
 				else if (file.EndsWith(".gz"))
 				{
-					ArchiveHelpers.ExtractGzip(file, config.Path!);
-				}
-				else if (file.EndsWith(".tar"))
-				{
-					ArchiveHelpers.ExtractTar(file, config.Path!);
+					ArchiveHelpers.DecompressGzip(file, tarFile);
 				}
 
-				File.Delete(file);
+				ArchiveHelpers.ExtractTar(tarFile, config.Path!);
 			}
 		}
 
