@@ -111,7 +111,8 @@ namespace SysrootGenerator
 					ArchiveHelpers.DecompressGzip(file, tarFile);
 				}
 
-				ArchiveHelpers.ExtractTar(tarFile, config.Path!);
+				ArchiveHelpers.ExtractTar(file, config.Path!);
+				File.Delete(file);
 			}
 		}
 
@@ -120,6 +121,8 @@ namespace SysrootGenerator
 			IReadOnlyDictionary<string, Package> availablePackages,
 			Dictionary<string, Package> packagesToInstall)
 		{
+			packagesToInstall.TryAdd(package.Name, package);
+
 			foreach (var dependency in package.Depends)
 			{
 				if (!availablePackages.TryGetValue(dependency, out var dependentPackage))
