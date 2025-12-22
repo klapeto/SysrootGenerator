@@ -231,7 +231,7 @@ namespace SysrootGenerator
 
 			if (Directory.Exists(lib64Path))
 			{
-				CreateSymbolicLink(lib64Path, "usr/lib64");
+				CreateSymbolicLink(Path.Combine(config.Path!, "lib64"), "usr/lib64");
 			}
 		}
 
