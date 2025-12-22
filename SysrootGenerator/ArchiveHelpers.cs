@@ -17,103 +17,66 @@
 //
 // **********************************************************************
 
-using System;
-using System.Diagnostics;
-using System.IO;
+using Microsoft.CST.RecursiveExtractor;
+using Microsoft.CST.RecursiveExtractor.Extractors;
+using ZstdSharp;
 
 namespace SysrootGenerator
 {
 	public static class ArchiveHelpers
 	{
-		public static void ExtractTar(string archivePath, string outputPath)
+		public static void ExtractTar(string file, string outputPath)
 		{
-			var process = Process.Start(
-				new ProcessStartInfo
-				{
-					FileName = "tar",
-					Arguments = $"-x --overwrite --file=\"{archivePath}\" --directory=\"{outputPath}\"",
-					RedirectStandardError = true,
-				});
-
-			var error = process!.StandardError.ReadToEnd();
-			process.WaitForExit();
-			if (process.ExitCode != 0)
-			{
-				throw new Exception($"tar failed: '{archivePath}': {error}");
-			}
+			ExtractAr(file, outputPath);
 		}
 
-		public static void ExtractAr(string archivePath, string outputPath)
+		public static void ExtractAr(string file, string outputPath)
 		{
-			var process = Process.Start(
-				new ProcessStartInfo
-				{
-					FileName = "ar",
-					Arguments = $"-x -f --output=\"{outputPath}\" \"{archivePath}\"",
-					RedirectStandardError = true,
-				});
-
-			var error = process!.StandardError.ReadToEnd();
-			process.WaitForExit();
-			if (process.ExitCode != 0)
-			{
-				throw new Exception($"tar failed: '{archivePath}': {error}");
-			}
+			using var stream = File.OpenRead(file);
+			ExtractAr(stream, outputPath);
 		}
 
-		public static void DecompressXz(string file, string outputFile)
+		public static void ExtractXz(string file, string outputPath)
 		{
-			var process = Process.Start(
-				new ProcessStartInfo
-				{
-					FileName = "xz",
-					WorkingDirectory = Path.GetDirectoryName(outputFile),
-					Arguments = $"-d -f \"{Path.GetFullPath(file)}\"",
-					RedirectStandardError = true,
-				});
-
-			var error = process!.StandardError.ReadToEnd();
-			process.WaitForExit();
-			if (process.ExitCode != 0)
-			{
-				throw new Exception($"xz failed: '{file}': {error}");
-			}
+			ExtractAr(file, outputPath);
 		}
 
-		public static void DecompressGzip(string file, string outputFile)
+		public static void ExtractGzip(string file, string outputPath)
 		{
-			var process = Process.Start(
-				new ProcessStartInfo
-				{
-					FileName = "gzip",
-					WorkingDirectory = Path.GetDirectoryName(outputFile),
-					Arguments = $"-d -f \"{Path.GetFullPath(file)}\"",
-					RedirectStandardError = true,
-				});
-
-			var error = process!.StandardError.ReadToEnd();
-			process.WaitForExit();
-			if (process.ExitCode != 0)
-			{
-				throw new Exception($"gzip failed: '{file}': {error}");
-			}
+			ExtractAr(file, outputPath);
 		}
 
-		public static void DecompressZstd(string file, string outputFile)
+		public static void ExtractZstd(string file, string outputPath)
 		{
-			var process = Process.Start(
-				new ProcessStartInfo
-				{
-					FileName = "zstd",
-					Arguments = $"-d -f -o \"{outputFile}\" \"{file}\"",
-					RedirectStandardError = true,
-				});
+			using var input = File.OpenRead(file);
+			using var buffer = new MemoryStream();
+			using var decompressionStream = new DecompressionStream(input);
+			decompressionStream.CopyTo(buffer);
+			ExtractAr(buffer, outputPath);
+		}
 
-			var error = process!.StandardError.ReadToEnd();
-			process.WaitForExit();
-			if (process.ExitCode != 0)
+		private static void ExtractAr(Stream stream, string outputPath)
+		{
+			var extractor = new Extractor();
+			extractor.SetExtractor(ArchiveFileType.DEB, new GnuArExtractor(extractor)); // Workaround bug with certain debs
+
+			foreach (var file in extractor.Extract(
+						string.Empty,
+						stream,
+						new ExtractorOptions
+						{
+							Recurse = false
+						}))
 			{
-				throw new Exception($"zstd failed: '{file}': {error}");
+				if (string.IsNullOrEmpty(file.FullPath))
+				{
+					continue;
+				}
+
+				var outFilePath = Path.Combine(outputPath, file.FullPath);
+				Directory.CreateDirectory(Path.GetDirectoryName(outFilePath));
+				using var output = File.OpenWrite(outFilePath);
+				file.Content.CopyTo(output);
 			}
 		}
 	}

@@ -82,8 +82,6 @@ namespace SysrootGenerator
 			var tmpDir = Path.Combine(config.CachePath!, "tmp");
 			Directory.CreateDirectory(tmpDir);
 
-			var tarFile = Path.Combine(tmpDir, "data.tar");
-
 			using var md5 = MD5.Create();
 
 			foreach (var package in packages)
@@ -106,7 +104,7 @@ namespace SysrootGenerator
 				}
 
 				ArchiveHelpers.ExtractAr(debPath, tmpDir);
-				var file = Directory.GetFiles(tmpDir).FirstOrDefault(f => Path.GetFileName(f).StartsWith("data.tar"));
+				var file = Directory.GetFiles(tmpDir, "*", SearchOption.AllDirectories).FirstOrDefault(f => Path.GetFileName(f).StartsWith("data.tar"));
 
 				if (file == null)
 				{
@@ -115,21 +113,22 @@ namespace SysrootGenerator
 
 				if (file.EndsWith(".zst"))
 				{
-					ArchiveHelpers.DecompressZstd(file, tarFile);
+					ArchiveHelpers.ExtractZstd(file, config.Path!);
 				}
 				else if (file.EndsWith(".xz"))
 				{
-					ArchiveHelpers.DecompressXz(file, tarFile);
+					ArchiveHelpers.ExtractXz(file, config.Path!);
 				}
 				else if (file.EndsWith(".gz"))
 				{
-					ArchiveHelpers.DecompressGzip(file, tarFile);
+					ArchiveHelpers.ExtractGzip(file, config.Path!);
+				}
+				else if (file.EndsWith(".tar"))
+				{
+					ArchiveHelpers.ExtractTar(file, config.Path!);
 				}
 
-				ArchiveHelpers.ExtractTar(tarFile, config.Path!);
-				Directory.GetFiles(tmpDir, "*", SearchOption.AllDirectories)
-					.ToList()
-					.ForEach(File.Delete);
+				File.Delete(file);
 			}
 		}
 
@@ -224,32 +223,14 @@ namespace SysrootGenerator
 
 		private static void CreateSymbolicLinks(Configuration config)
 		{
-			CreateSymbolicLink(Path.Combine(config.Path!, "bin"), "usr/bin");
-			CreateSymbolicLink(Path.Combine(config.Path!, "lib"), "usr/lib");
-			CreateSymbolicLink(Path.Combine(config.Path!, "sbin"), "usr/sbin");
+			File.CreateSymbolicLink(Path.Combine(config.Path!, "bin"), "usr/bin");
+			File.CreateSymbolicLink(Path.Combine(config.Path!, "lib"), "usr/lib");
+			File.CreateSymbolicLink(Path.Combine(config.Path!, "sbin"), "usr/sbin");
 			var lib64Path = Path.Combine(config.Path!, "usr", "lib64");
 
 			if (Directory.Exists(lib64Path))
 			{
-				CreateSymbolicLink(Path.Combine(config.Path!, "lib64"), "usr/lib64");
-			}
-		}
-
-		private static void CreateSymbolicLink(string sourcePath, string targetPath)
-		{
-			//var directory = Path.GetDirectoryName(targetPath);
-			var process = Process.Start(
-				new ProcessStartInfo
-				{
-					FileName = "ln", Arguments = $"-s \"{targetPath}\" \"{sourcePath}\"", RedirectStandardError = true,
-				});
-
-			var error = process!.StandardError.ReadToEnd();
-			process.WaitForExit();
-
-			if (process.ExitCode != 0)
-			{
-				throw new Exception($"ln failed: '{sourcePath}' -> {targetPath}: {error}");
+				File.CreateSymbolicLink(Path.Combine(config.Path!, "lib64"), "usr/lib64");
 			}
 		}
 	}
