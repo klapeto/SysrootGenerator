@@ -1,17 +1,66 @@
-# SysrootGenerator
+# Sysroot Generator
 
-Generates debian/ubuntu based sysroots. Currently only works on linux
+A utility to generate a sysroot by downloading and extracting Debian/Ubuntu packages and their dependencies.
 
 ## Usage
 
-Edit the `sysroot.json` file or provide a config json file from the parameter and run `SysrootGenerator`
+The tool can be configured via command-line arguments or a JSON configuration file.
 
-## File config
- - arch: the target architecture of the sysroot (e.g. amd64, arm64, armhf)
- - distribution: the distribution version to use (e.g. noble, jammy)
- - path: the target directory to produce the sysroot
- - cachePath: the directory to use as path
- - packages: a list of packages to install on the sysroot
- - sources: a list of sources to get the packages
-   - uri: the uri of the source
-   - components: the components to use from the source (e.g. main, universe)
+### Command Line Arguments
+
+| Option | Description |
+| :--- | :--- |
+| `--path` | **Required.** The target directory where the sysroot will be created. |
+| `--distribution` | **Required.** The distribution name (e.g., `bookworm`, `focal`, `jammy`). |
+| `--packages` | **Required.** Comma-separated list of packages to install. |
+| `--sources` | **Required.** Space-separated list of sources. Format: `uri\|comp1,comp2`. |
+| `--arch` | Target architecture (e.g., `amd64`, `arm64`, `armhf`). Default: `amd64`. |
+| `--cache-path` | Path for downloaded packages. Default: `<path>/tmp`. |
+| `--config-file`| Path to a JSON file containing the configuration. |
+| `--help` | Show help information. |
+
+### Examples
+
+#### Using Command Line Arguments
+```bash
+SysrootGenerator --path=./my-sysroot --distribution=jammy --packages="libc6-dev,libssl-dev,zlib1g-dev" --sources="https://archive.ubuntu.com/ubuntu/|main,universe"
+```
+
+#### Using a Configuration File
+Create a `config.json`:
+
+```json
+{
+  "arch": "amd64",
+  "distribution":"noble",
+  "path": "./x86_64-linux-gnu",
+  "cachePath": "./cache",
+  "packages":[
+    "build-essential"
+  ],
+  "sources":[
+    {
+      "uri": "https://archive.ubuntu.com/ubuntu/",
+      "components":[
+        "main"
+      ]
+    }
+  ]
+}
+```
+
+Run the tool:
+```bash
+SysrootGenerator --config-file=config.json
+```
+
+
+## How it works
+1.  **Metadata Download**: Downloads `Packages.gz` from the specified sources.
+2.  **Dependency Resolution**: Recursively resolves all dependencies for the requested packages.
+3.  **Download**: Downloads the required `.deb` files to the cache directory.
+4.  **Extraction**: Extracts the data archive from the packages into the target path.
+5.  **Setup**: Creates standard symbolic links (e.g., `/lib` -> `usr/lib`) for compatibility.
+
+## License
+GPL-3.0
