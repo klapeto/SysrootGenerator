@@ -19,6 +19,7 @@
 
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -36,6 +37,7 @@ namespace SysrootGenerator
 			try
 			{
 				var path = args.Length > 0 ? args[0] : Path.Combine(Directory.GetCurrentDirectory(), "sysroot.json");
+
 				if (!File.Exists(path))
 				{
 					Logger.Error($"File not found: {path}");
@@ -51,7 +53,17 @@ namespace SysrootGenerator
 
 				var packagesToInstall = GetPackagesToInstall(configuration!, packages);
 
+				var targetDir = configuration!.Path;
+
+				if (Directory.Exists(targetDir))
+				{
+					Directory.Delete(targetDir, true);
+				}
+
+				Directory.CreateDirectory(targetDir);
+
 				InstallPackages(configuration!, packagesToInstall);
+				CreateSymbolicLinks(configuration!);
 			}
 			catch (Exception ex)
 			{
@@ -73,6 +85,7 @@ namespace SysrootGenerator
 			var tarFile = Path.Combine(tmpDir, "data.tar");
 
 			using var md5 = MD5.Create();
+
 			foreach (var package in packages)
 			{
 				Logger.Info($"Installing package: {package.Name}");
@@ -84,6 +97,7 @@ namespace SysrootGenerator
 				{
 					var hash = BitConverter.ToString(md5.ComputeHash(debStream)).Replace("-", string.Empty)
 						.ToLowerInvariant();
+
 					if (!hash.Equals(package.Md5Sum))
 					{
 						throw new Exception(
@@ -93,6 +107,7 @@ namespace SysrootGenerator
 
 				ArchiveHelpers.ExtractAr(debPath, tmpDir);
 				var file = Directory.GetFiles(tmpDir).FirstOrDefault(f => Path.GetFileName(f).StartsWith("data.tar"));
+
 				if (file == null)
 				{
 					throw new Exception($"Package '{package.Name}' could not find: data.xx.yy file");
@@ -144,6 +159,7 @@ namespace SysrootGenerator
 			IReadOnlyDictionary<string, Package> packages)
 		{
 			var packagesToInstall = new Dictionary<string, Package>();
+
 			foreach (var packageName in config.Packages!)
 			{
 				if (!packages.TryGetValue(packageName, out var dependentPackage))
@@ -186,9 +202,11 @@ namespace SysrootGenerator
 			Directory.CreateDirectory(databasesPath);
 
 			var packages = new List<Package>();
+
 			foreach (var source in config.Sources!)
 			{
 				var baseUri = new Uri(source.Uri!.TrimEnd('/'));
+
 				foreach (var section in source.Components!)
 				{
 					var uri = new Uri(
@@ -200,6 +218,37 @@ namespace SysrootGenerator
 			}
 
 			return packages.ToDictionary(k => k.Name, v => v);
+		}
+
+		private static void CreateSymbolicLinks(Configuration config)
+		{
+			CreateSymbolicLink(Path.Combine(config.Path!, "bin"), "usr/bin");
+			CreateSymbolicLink(Path.Combine(config.Path!, "lib"), "usr/lib");
+			CreateSymbolicLink(Path.Combine(config.Path!, "sbin"), "usr/sbin");
+			var lib64Path = Path.Combine(config.Path!, "usr", "lib64");
+
+			if (Directory.Exists(lib64Path))
+			{
+				CreateSymbolicLink(lib64Path, "usr/lib64");
+			}
+		}
+
+		private static void CreateSymbolicLink(string sourcePath, string targetPath)
+		{
+			//var directory = Path.GetDirectoryName(targetPath);
+			var process = Process.Start(
+				new ProcessStartInfo
+				{
+					FileName = "ln", Arguments = $"-s \"{targetPath}\" \"{sourcePath}\"", RedirectStandardError = true,
+				});
+
+			var error = process!.StandardError.ReadToEnd();
+			process.WaitForExit();
+
+			if (process.ExitCode != 0)
+			{
+				throw new Exception($"ln failed: '{sourcePath}' -> {targetPath}: {error}");
+			}
 		}
 	}
 }
