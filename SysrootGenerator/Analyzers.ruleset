@@ -10,6 +10,8 @@
         <Rule Id="SA1008" Action="None" />  <!-- Opening parenthesis should be placed corectly -->
         <Rule Id="SA1623" Action="None" />  <!-- Documentation should begin with Gets or Sets -->
         <Rule Id="SA1629" Action="None" />  <!-- Documentation should end with period -->
+        <Rule Id="SA1413" Action="None" />  <!-- Use trailing comma in multi-line initializers -->
+        <Rule Id="SA1010" Action="None" />  <!-- Opening square brackets should not be preceded by a space. -->
         
         <Rule Id="SA1600" Action="None" />  <!-- Elements should be documented -->
         <Rule Id="SA1602" Action="None" />  <!-- Enumerations should be documented -->

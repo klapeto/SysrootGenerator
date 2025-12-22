@@ -17,9 +17,8 @@
 //
 // **********************************************************************
 
-using System;
-using System.IO;
 using System.Text.Json;
+using Microsoft.Extensions.Configuration;
 
 namespace SysrootGenerator
 {
@@ -37,16 +36,80 @@ namespace SysrootGenerator
 
 		public Source[]? Sources { get; set; }
 
-		public static bool TryGetFromFile(string path, out Configuration? config)
+		public static bool TryGetFromArgs(string[] args, out Configuration? config)
 		{
-			using var stream = File.OpenRead(path);
-			config = JsonSerializer.Deserialize<Configuration>(
-				stream,
-				new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+			IConfiguration rootConfig = new ConfigurationBuilder()
+				.AddCommandLine(args)
+				.Build();
 
+			var configValue = rootConfig.GetSection("config-file");
+
+			Configuration? draftConfig;
+
+			if (!string.IsNullOrEmpty(configValue.Value))
+			{
+				using var stream = File.OpenRead(configValue.Value);
+				draftConfig = JsonSerializer.Deserialize<Configuration>(
+					stream,
+					new JsonSerializerOptions
+					{
+						PropertyNameCaseInsensitive = true
+					});
+			}
+			else
+			{
+				draftConfig = new Configuration
+				{
+					Path = rootConfig.GetSection("path").Value,
+					Arch = rootConfig.GetSection("arch").Value,
+					CachePath = rootConfig.GetSection("cache-path").Value,
+					Distribution = rootConfig.GetSection("distribution").Value,
+					Packages = rootConfig.GetSection("packages").Value?.Split(','),
+					Sources = ParseSources(rootConfig.GetSection("sources").Value).ToArray()
+				};
+			}
+
+			if (ValidateConfig(draftConfig))
+			{
+				config = draftConfig;
+				return true;
+			}
+
+			config = null;
+			return false;
+		}
+
+		private static IEnumerable<Source> ParseSources(string? args)
+		{
+			if (string.IsNullOrEmpty(args))
+			{
+				yield break;
+			}
+
+			foreach (var arg in args.Split(' '))
+			{
+				var parts = arg.Trim().Split('|');
+
+				if (parts.Length != 1 && parts.Length != 2)
+				{
+					throw new ArgumentException(
+						$"Invalid source argument: '{arg}'. It needs to be in format 'uri1|component1,component2'.");
+				}
+
+				var uri = parts.First();
+				var components = parts.Length == 2 ? parts.Last().Split(',').Select(s => s.Trim()).ToArray() : null;
+				yield return new Source
+				{
+					Uri = uri, Components = components
+				};
+			}
+		}
+
+		private static bool ValidateConfig(Configuration? config)
+		{
 			if (config == null)
 			{
-				Logger.Error("Configuration file is empty.");
+				Logger.Error("Configuration is empty.");
 				return false;
 			}
 
@@ -93,6 +156,7 @@ namespace SysrootGenerator
 			for (var index = 0; index < config.Sources.Length; index++)
 			{
 				var source = config.Sources[index];
+
 				if (source.Uri == null)
 				{
 					Logger.Error($"Uri of {index}th source is not defined.");

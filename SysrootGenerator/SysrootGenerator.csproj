@@ -25,6 +25,7 @@
 
     <ItemGroup>
       <PackageReference Include="Microsoft.CST.RecursiveExtractor" Version="1.2.47" />
+      <PackageReference Include="Microsoft.Extensions.Configuration.CommandLine" Version="10.0.1" />
       <PackageReference Include="SharpCompress" Version="0.42.1" />
       <PackageReference Include="System.Text.Json" Version="10.0.0" />
       <PackageReference Include="ZstdSharp.Port" Version="0.8.6" />

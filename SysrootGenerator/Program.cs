@@ -17,35 +17,27 @@
 //
 // **********************************************************************
 
-using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.IO;
-using System.Linq;
-using System.Net.Http;
 using System.Security.Cryptography;
-using System.Threading;
 
 namespace SysrootGenerator
 {
 	internal static class Program
 	{
-		private static readonly HttpClientHandler Handler = new();
+		private readonly static HttpClientHandler Handler = new();
 
 		public static int Main(string[] args)
 		{
 			try
 			{
-				var path = args.Length > 0 ? args[0] : Path.Combine(Directory.GetCurrentDirectory(), "sysroot.json");
-
-				if (!File.Exists(path))
+				if (args.Contains("--help") || args.Contains("-h"))
 				{
-					Logger.Error($"File not found: {path}");
-					return 1;
+					PrintHelp();
+					return 0;
 				}
 
-				if (!Configuration.TryGetFromFile(path, out var configuration))
+				if (!Configuration.TryGetFromArgs(args, out var configuration))
 				{
+					PrintHelp();
 					return 1;
 				}
 
@@ -72,6 +64,27 @@ namespace SysrootGenerator
 			}
 
 			return 0;
+		}
+
+		private static void PrintHelp()
+		{
+			Console.WriteLine("Sysroot Generator");
+			Console.WriteLine("Usage: SysrootGenerator [options]");
+			Console.WriteLine();
+			Console.WriteLine("Options:");
+			Console.WriteLine("  --config-file=<path>    Path to a JSON configuration file (will ignore rest of arguments).");
+			Console.WriteLine("  --path=<path>           The target directory for the sysroot.");
+			Console.WriteLine("  --arch=<arch>           The target architecture (e.g., amd64, armhf). Default: amd64.");
+			Console.WriteLine("  --distribution=<dist>   The distribution name (e.g., bookworm, focal).");
+			Console.WriteLine("  --cache-path=<path>     Path for downloaded packages and metadata. Default: <path>/tmp.");
+			Console.WriteLine("  --packages=<pkg1,...>   Comma-separated list of packages to install.");
+			Console.WriteLine("  --sources=<src1|comp1,comp2 ...> ");
+			Console.WriteLine(
+				"                          Space-separated list of sources in format: 'uri|component1,component2'");
+			Console.WriteLine();
+			Console.WriteLine("Examples:");
+			Console.WriteLine("  SysrootGenerator --path=./sysroot --distribution=noble --packages=libc6-dev,libssl-dev --sources=\"https://archive.ubuntu.com/ubuntu/|main,universe\"");
+			Console.WriteLine("  SysrootGenerator --config-file=./config.json");
 		}
 
 		private static void InstallPackages(Configuration config, IEnumerable<Package> packages)
@@ -104,7 +117,8 @@ namespace SysrootGenerator
 				}
 
 				ArchiveHelpers.ExtractAr(debPath, tmpDir);
-				var file = Directory.GetFiles(tmpDir, "*", SearchOption.AllDirectories).FirstOrDefault(f => Path.GetFileName(f).StartsWith("data.tar"));
+				var file = Directory.GetFiles(tmpDir, "*", SearchOption.AllDirectories)
+					.FirstOrDefault(f => Path.GetFileName(f).StartsWith("data.tar"));
 
 				if (file == null)
 				{
