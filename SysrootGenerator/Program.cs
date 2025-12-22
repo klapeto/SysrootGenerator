@@ -126,8 +126,10 @@ namespace SysrootGenerator
 					ArchiveHelpers.DecompressGzip(file, tarFile);
 				}
 
-				ArchiveHelpers.ExtractTar(file, config.Path!);
-				File.Delete(file);
+				ArchiveHelpers.ExtractTar(tarFile, config.Path!);
+				Directory.GetFiles(tmpDir, "*", SearchOption.AllDirectories)
+					.ToList()
+					.ForEach(File.Delete);
 			}
 		}
 
@@ -147,7 +149,7 @@ namespace SysrootGenerator
 
 				if (!packagesToInstall.TryAdd(dependentPackage.Name, dependentPackage))
 				{
-					return;
+					continue;
 				}
 
 				ResolveDependencies(dependentPackage, availablePackages, packagesToInstall);
