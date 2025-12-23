@@ -18,6 +18,7 @@ The tool can be configured via command-line arguments or a JSON configuration fi
 | `--cache-path`   | Path for downloaded packages. Default: `<path>/tmp`.                       |
 | `--config-file`  | Path to a JSON file containing the configuration.                          |
 | `--verbose`      | Enable verbose logging.                                                    |
+| `--purge`        | Purge existing sysroot.                                                    |
 | `--help`         | Show help information.                                                     |
 
 ### Examples

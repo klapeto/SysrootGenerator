@@ -36,6 +36,8 @@ namespace SysrootGenerator
 
 		public Source[]? Sources { get; set; }
 
+		public bool Purge { get; set; }
+
 		public static bool TryGetFromArgs(string[] args, out Configuration? config)
 		{
 			IConfiguration rootConfig = new ConfigurationBuilder()
@@ -65,7 +67,8 @@ namespace SysrootGenerator
 					CachePath = rootConfig.GetSection("cache-path").Value,
 					Distribution = rootConfig.GetSection("distribution").Value,
 					Packages = rootConfig.GetSection("packages").Value?.Split(','),
-					Sources = ParseSources(rootConfig.GetSection("sources").Value).ToArray()
+					Sources = ParseSources(rootConfig.GetSection("sources").Value).ToArray(),
+					Purge = !string.IsNullOrEmpty(rootConfig.GetSection("purge").Value),
 				};
 			}
 

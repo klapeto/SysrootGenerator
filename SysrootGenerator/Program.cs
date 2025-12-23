@@ -47,7 +47,7 @@ namespace SysrootGenerator
 
 				var targetDir = configuration!.Path;
 
-				if (Directory.Exists(targetDir))
+				if (configuration.Purge && Directory.Exists(targetDir))
 				{
 					Directory.Delete(targetDir, true);
 				}
@@ -72,6 +72,8 @@ namespace SysrootGenerator
 			Console.WriteLine("Usage: SysrootGenerator [options]");
 			Console.WriteLine();
 			Console.WriteLine("Options:");
+			Console.WriteLine("  --verbose               Enable verbose output.");
+			Console.WriteLine("  --purge                 Purge existing sysroot.");
 			Console.WriteLine("  --config-file=<path>    Path to a JSON configuration file (will ignore rest of arguments).");
 			Console.WriteLine("  --path=<path>           The target directory for the sysroot.");
 			Console.WriteLine("  --arch=<arch>           The target architecture (e.g., amd64, armhf). Default: amd64.");
@@ -108,6 +110,7 @@ namespace SysrootGenerator
 				{
 					Directory.Delete(tmpDir, true);
 				}
+
 				Directory.CreateDirectory(tmpDir);
 
 				var uri = new Uri(package.Uri);
@@ -283,16 +286,23 @@ namespace SysrootGenerator
 			return dictionary;
 		}
 
+		private static void CreateSymbolicLinkIfNotExisting(string path, string target)
+		{
+			if (!Directory.Exists(path))
+			{
+				File.CreateSymbolicLink(path, target);
+			}
+		}
+
 		private static void CreateSymbolicLinks(Configuration config)
 		{
-			File.CreateSymbolicLink(Path.Combine(config.Path!, "bin"), "usr/bin");
-			File.CreateSymbolicLink(Path.Combine(config.Path!, "lib"), "usr/lib");
-			File.CreateSymbolicLink(Path.Combine(config.Path!, "sbin"), "usr/sbin");
+			CreateSymbolicLinkIfNotExisting(Path.Combine(config.Path!, "bin"), "usr/bin");
+			CreateSymbolicLinkIfNotExisting(Path.Combine(config.Path!, "lib"), "usr/lib");
+			CreateSymbolicLinkIfNotExisting(Path.Combine(config.Path!, "sbin"), "usr/sbin");
 			var lib64Path = Path.Combine(config.Path!, "usr", "lib64");
-
 			if (Directory.Exists(lib64Path))
 			{
-				File.CreateSymbolicLink(Path.Combine(config.Path!, "lib64"), "usr/lib64");
+				CreateSymbolicLinkIfNotExisting(Path.Combine(config.Path!, "lib64"), "usr/lib64");
 			}
 		}
 	}
