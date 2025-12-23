@@ -1,6 +1,7 @@
 # Sysroot Generator
 
 A utility to generate a sysroot by downloading and extracting Debian/Ubuntu packages and their dependencies.
+It is an alternative to `debootstrap` and `chroot` for creating a sysroot for cross-compilation without root privileges.
 
 ## Usage
 
@@ -16,19 +17,23 @@ sudo apt install binutils gzip tar xz-utils zstd
 
 ### Command Line Arguments
 
-| Option           | Description                                                                |
-|:-----------------|:---------------------------------------------------------------------------|
-| `--path`         | **Required.** The target directory where the sysroot will be created.      |
-| `--distribution` | **Required.** The distribution name (e.g., `bookworm`, `focal`, `jammy`).  |
-| `--packages`     | **Required.** Comma-separated list of packages to install.                 |
-| `--sources`      | **Required.** Space-separated list of sources. Format: `uri\|comp1,comp2`. |
-| `--arch`         | Target architecture (e.g., `amd64`, `arm64`, `armhf`). Default: `amd64`.   |
-| `--cache-path`   | Path for downloaded packages. Default: `<path>/tmp`.                       |
-| `--config-file`  | Path to a JSON file containing the configuration.                          |
-| `--verbose`      | Enable verbose logging.                                                    |
-| `--purge`        | Purge existing sysroot.                                                    |
-| `--purge-cache`  | Purge caches.                                                              |
-| `--help`         | Show help information.                                                     |
+| Option                         | Description                                                                                                                       |
+|:-------------------------------|:----------------------------------------------------------------------------------------------------------------------------------|
+| `--path`                       | **Required.** The target directory where the sysroot will be created.                                                             |
+| `--distribution`               | **Required.** The distribution name (e.g., `bookworm`, `focal`, `jammy`).                                                         |
+| `--packages`                   | **Required.** Comma-separated list of packages to install.                                                                        |
+| `--sources`                    | **Required.** Space-separated list of sources. Format: `uri\|comp1,comp2`.                                                        |
+| `--arch`                       | Target architecture (e.g., `amd64`, `arm64`, `armhf`). Default: `amd64`.                                                          |
+| `--cache-path`                 | Path for downloaded packages. Default: `<path>/tmp`.                                                                              |
+| `--config-file`                | Path to a JSON file containing the configuration.                                                                                 |
+| `--verbose`                    | Enable verbose logging.                                                                                                           |
+| `--purge`                      | Purge existing sysroot.                                                                                                           |
+| `--purge-cache`                | Purge caches.                                                                                                                     |
+| `--no-usr-merge`               | Do not merge `/usr` directory to root (e.g. normally `/lib` would be merged with `/usr/lib` and `/lib` will point to `/usr/lib`). |
+| `--http-timeout`               | The timeout for HTTP requests in seconds. Default: `100`.                                                                         |
+| `--banned-packages`            | Comma-separated list of packages to ban from installation.                                                                        |
+| `--no-default-banned-packages` | Do not bypass default banned packages (e.g., linux-image, linux-headers).                                                         |
+| `--help`                       | Show help information.                                                                                                            |
 
 ### Examples
 
@@ -65,13 +70,12 @@ Run the tool:
 SysrootGenerator --config-file=config.json
 ```
 
-
 ## How it works
 1.  **Metadata Download**: Downloads `Packages.gz` from the specified sources.
 2.  **Dependency Resolution**: Recursively resolves all dependencies for the requested packages.
 3.  **Download**: Downloads the required `.deb` files to the cache directory.
 4.  **Extraction**: Extracts the data archive from the packages into the target path.
-5.  **Setup**: Creates standard symbolic links (e.g., `/lib` -> `usr/lib`) for compatibility.
+5.  **Merge usr**: Merges root directories to usr ones (e.g., `/lib` -> `usr/lib`) for compatibility.
 
 ## License
 GPL-3.0

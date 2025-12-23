@@ -23,7 +23,12 @@ namespace SysrootGenerator
 {
 	internal static class Program
 	{
-		private readonly static HttpClientHandler Handler = new();
+		private static readonly HttpClientHandler Handler = new();
+
+		private static readonly string[] DefaultBannedPackages =
+		[
+			"linux-base", "linux-image-", "linux-headers-", "linux-modules-", "linux-firmware"
+		];
 
 		public static int Main(string[] args)
 		{
@@ -43,8 +48,6 @@ namespace SysrootGenerator
 
 				var packages = AptUpdate(configuration!);
 
-				var packagesToInstall = GetPackagesToInstall(configuration!, packages);
-
 				var targetDir = configuration!.Path;
 
 				if (configuration.Purge && Directory.Exists(targetDir))
@@ -59,8 +62,21 @@ namespace SysrootGenerator
 					Directory.Delete(configuration.CachePath, true);
 				}
 
+				var bannedPackages = configuration.BannedPackages?.ToList() ?? [];
+
+				if (!configuration.NoDefaultBannedPackages)
+				{
+					bannedPackages.AddRange(DefaultBannedPackages);
+				}
+
+				var packagesToInstall = GetPackagesToInstall(configuration!, packages, bannedPackages);
+
 				InstallPackages(configuration, packagesToInstall.ToArray());
-				CreateSymbolicLinks(configuration!);
+
+				if (!configuration.NoUsrMerge)
+				{
+					MergeUsr(configuration!);
+				}
 			}
 			catch (Exception ex)
 			{
@@ -77,21 +93,25 @@ namespace SysrootGenerator
 			Console.WriteLine("Usage: SysrootGenerator [options]");
 			Console.WriteLine();
 			Console.WriteLine("Options:");
-			Console.WriteLine("  --verbose               Enable verbose output.");
-			Console.WriteLine("  --purge                 Purge existing sysroot.");
-			Console.WriteLine("  --purge-cache           Purge existing caches.");
-			Console.WriteLine("  --config-file=<path>    Path to a JSON configuration file (will ignore rest of arguments).");
-			Console.WriteLine("  --path=<path>           The target directory for the sysroot.");
-			Console.WriteLine("  --arch=<arch>           The target architecture (e.g., amd64, armhf). Default: amd64.");
-			Console.WriteLine("  --distribution=<dist>   The distribution name (e.g., bookworm, focal).");
-			Console.WriteLine("  --cache-path=<path>     Path for downloaded packages and metadata. Default: <path>/tmp.");
-			Console.WriteLine("  --packages=<pkg1,...>   Comma-separated list of packages to install.");
-			Console.WriteLine("  --sources=<src1|comp1,comp2 ...> ");
-			Console.WriteLine(
-				"                          Space-separated list of sources in format: 'uri|component1,component2'");
+			Console.WriteLine("  --config-file=<path>          Path to a JSON configuration file (will ignore rest of arguments).");
+			Console.WriteLine("  --path=<path>                 The target directory for the sysroot.");
+			Console.WriteLine("  --arch=<arch>                 The target architecture (e.g., amd64, armhf). Default: amd64.");
+			Console.WriteLine("  --distribution=<dist>         The distribution name (e.g., bookworm, focal).");
+			Console.WriteLine("  --cache-path=<path>           Path for downloaded packages and metadata. Default: <path>/tmp.");
+			Console.WriteLine("  --packages=<pkg1,...>         Comma-separated list of packages to install.");
+			Console.WriteLine("  --sources=\"<src1|comp1,comp2 ...>\" ");
+			Console.WriteLine("                                Space-separated list of sources in format: 'uri|component1,component2'.");
+			Console.WriteLine("  --verbose                     Enable verbose output.");
+			Console.WriteLine("  --purge                       Purge existing sysroot.");
+			Console.WriteLine("  --purge-cache                 Purge existing caches.");
+			Console.WriteLine("  --http-timeout=<seconds>      The timeout for HTTP requests. Default: 100 seconds.");
+			Console.WriteLine("  --banned-packages=<pkg1,...>  Comma-separated list of packages to ban from installation.");
+			Console.WriteLine("  --no-default-banned-packages  Do not bypass default banned packages.");
+			Console.WriteLine("  --no-usr-merge                Do not merge usr directory to root (/bin to point to /usr/bin, etc.).");
 			Console.WriteLine();
 			Console.WriteLine("Examples:");
-			Console.WriteLine("  SysrootGenerator --path=./sysroot --distribution=noble --packages=libc6-dev,libssl-dev --sources=\"https://archive.ubuntu.com/ubuntu/|main,universe\"");
+			Console.WriteLine(
+				"  SysrootGenerator --path=./sysroot --distribution=noble --packages=libc6-dev,libssl-dev --sources=\"https://archive.ubuntu.com/ubuntu/|main,universe\"");
 			Console.WriteLine("  SysrootGenerator --config-file=./config.json");
 		}
 
@@ -106,8 +126,10 @@ namespace SysrootGenerator
 
 			var tarFile = Path.Combine(tmpDir, "data.tar");
 
+			var timeout = TimeSpan.FromSeconds(config.HttpTimeout);
 			var i = 0;
 			var total = packages.Length;
+
 			foreach (var package in packages)
 			{
 				Logger.Info($"Installing package: {package.Name} ({i++}/{total})");
@@ -121,7 +143,7 @@ namespace SysrootGenerator
 
 				var uri = new Uri(package.Uri);
 				var debPath = Path.Combine(packagesPath, $"{uri.Segments.Last()}");
-				DownloadIfNotExist(uri, debPath);
+				DownloadIfNotExist(uri, debPath, timeout);
 
 				using (var debStream = File.OpenRead(debPath))
 				{
@@ -165,12 +187,19 @@ namespace SysrootGenerator
 			Package package,
 			IReadOnlyDictionary<string, Package> availablePackages,
 			Dictionary<string, Package> packagesToInstall,
-			HashSet<string> missingPackages)
+			HashSet<string> missingPackages,
+			IReadOnlyCollection<string> bannedPackages)
 		{
 			packagesToInstall.TryAdd(package.Name, package);
 
 			foreach (var dependency in package.Depends)
 			{
+				if (bannedPackages.Any(p => dependency.StartsWith(p)))
+				{
+					Logger.Verbose($"Package dependency '{dependency}' is banned.");
+					continue;
+				}
+
 				if (!availablePackages.TryGetValue(dependency, out var dependentPackage))
 				{
 					missingPackages.Add(dependency);
@@ -182,13 +211,14 @@ namespace SysrootGenerator
 					continue;
 				}
 
-				ResolveDependencies(dependentPackage, availablePackages, packagesToInstall, missingPackages);
+				ResolveDependencies(dependentPackage, availablePackages, packagesToInstall, missingPackages, bannedPackages);
 			}
 		}
 
 		private static IEnumerable<Package> GetPackagesToInstall(
 			Configuration config,
-			IReadOnlyDictionary<string, Package> packages)
+			IReadOnlyDictionary<string, Package> packages,
+			IReadOnlyCollection<string> bannedPackages)
 		{
 			var packagesToInstall = new Dictionary<string, Package>();
 			var missingPackages = new HashSet<string>();
@@ -200,15 +230,17 @@ namespace SysrootGenerator
 					throw new Exception($"Dependency {packageName} not found");
 				}
 
-				ResolveDependencies(dependentPackage, packages, packagesToInstall, missingPackages);
+				ResolveDependencies(dependentPackage, packages, packagesToInstall, missingPackages, bannedPackages);
 			}
 
 			while (missingPackages.Count > 0)
 			{
 				var newMissingPackages = new HashSet<string>();
+
 				foreach (var missingPackage in missingPackages)
 				{
 					var providedBy = packagesToInstall.Values.FirstOrDefault(p => p.Provides.Contains(missingPackage));
+
 					if (providedBy != null)
 					{
 						Logger.Info($"Package '{missingPackage}' is provided by '{providedBy.Name}'. Skipping.");
@@ -216,10 +248,17 @@ namespace SysrootGenerator
 					else
 					{
 						var extraPackage = packages.Values.FirstOrDefault(p => p.Provides.Contains(missingPackage));
+
 						if (extraPackage != null)
 						{
-							Logger.Info($"Additional Package '{extraPackage.Name}' needs to be installed because it provides dependency for '{missingPackage}'");
-							ResolveDependencies(extraPackage, packages, packagesToInstall, newMissingPackages);
+							Logger.Info(
+								$"Additional Package '{extraPackage.Name}' needs to be installed because it provides dependency for '{missingPackage}'");
+							ResolveDependencies(
+								extraPackage,
+								packages,
+								packagesToInstall,
+								newMissingPackages,
+								bannedPackages);
 
 							if (newMissingPackages.Contains(missingPackage))
 							{
@@ -235,7 +274,7 @@ namespace SysrootGenerator
 			return packagesToInstall.Values;
 		}
 
-		private static void DownloadIfNotExist(Uri uri, string path)
+		private static void DownloadIfNotExist(Uri uri, string path, TimeSpan timeout)
 		{
 			if (File.Exists(path))
 			{
@@ -245,6 +284,7 @@ namespace SysrootGenerator
 
 			Logger.Verbose($"Downloading '{uri}' to '{path}'");
 			using var client = new HttpClient(Handler, false);
+			client.Timeout = timeout;
 
 			var response = client.GetAsync(uri).Result;
 			response.EnsureSuccessStatusCode();
@@ -263,6 +303,8 @@ namespace SysrootGenerator
 
 			Directory.CreateDirectory(databasesPath);
 
+			var timeout = TimeSpan.FromSeconds(config.HttpTimeout);
+
 			var packages = new List<Package>();
 
 			foreach (var source in config.Sources!)
@@ -274,7 +316,7 @@ namespace SysrootGenerator
 					var uri = new Uri(
 						$"{baseUri}/dists/{config.Distribution}/{section}/binary-{config.Arch}/Packages.gz");
 					var targetPath = Path.Combine(databasesPath, $"{config.Distribution}-{section}-{config.Arch}.gz");
-					DownloadIfNotExist(uri, targetPath);
+					DownloadIfNotExist(uri, targetPath, timeout);
 					packages.AddRange(DatabaseParser.GetPackagesFromDatabaseFile(baseUri, targetPath).ToArray());
 				}
 			}
@@ -292,23 +334,57 @@ namespace SysrootGenerator
 			return dictionary;
 		}
 
-		private static void CreateSymbolicLinkIfNotExisting(string path, string target)
+		private static void MoveDirectory(FileInfo source, string target)
 		{
-			if (!Directory.Exists(path))
+			var files = Directory.GetFileSystemEntries(source.FullName);
+
+			foreach (var file in files)
 			{
-				File.CreateSymbolicLink(path, target);
+				var fileInfo = new FileInfo(file);
+
+				if (fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
+				{
+					File.CreateSymbolicLink(Path.Combine(target, fileInfo.Name), fileInfo.LinkTarget!);
+					continue;
+				}
+
+				if (fileInfo.Attributes.HasFlag(FileAttributes.Normal))
+				{
+					fileInfo.MoveTo(Path.Combine(target, fileInfo.Name));
+					continue;
+				}
+
+				if (fileInfo.Attributes.HasFlag(FileAttributes.Directory))
+				{
+					Directory.CreateDirectory(Path.Combine(target, fileInfo.Name));
+					MoveDirectory(fileInfo, Path.Combine(target, fileInfo.Name));
+				}
 			}
 		}
 
-		private static void CreateSymbolicLinks(Configuration config)
+		private static void MergeDirectory(string rootPath, string directoryName, string targetDirectory)
 		{
-			CreateSymbolicLinkIfNotExisting(Path.Combine(config.Path!, "bin"), "usr/bin");
-			CreateSymbolicLinkIfNotExisting(Path.Combine(config.Path!, "lib"), "usr/lib");
-			CreateSymbolicLinkIfNotExisting(Path.Combine(config.Path!, "sbin"), "usr/sbin");
+			var originalPath = Path.Combine(rootPath, directoryName);
+
+			if (Directory.Exists(originalPath))
+			{
+				MoveDirectory(new FileInfo(originalPath), Path.Combine(rootPath, targetDirectory));
+				Directory.Delete(originalPath, true);
+			}
+
+			File.CreateSymbolicLink(originalPath, targetDirectory);
+		}
+
+		private static void MergeUsr(Configuration config)
+		{
+			MergeDirectory(config.Path!, "bin", "usr/bin");
+			MergeDirectory(config.Path!, "lib", "usr/lib");
+			MergeDirectory(config.Path!, "sbin", "usr/sbin");
 			var lib64Path = Path.Combine(config.Path!, "usr", "lib64");
+
 			if (Directory.Exists(lib64Path))
 			{
-				CreateSymbolicLinkIfNotExisting(Path.Combine(config.Path!, "lib64"), "usr/lib64");
+				MergeDirectory(config.Path!, "lib64", "usr/lib64");
 			}
 		}
 	}

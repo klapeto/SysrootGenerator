@@ -24,6 +24,8 @@ namespace SysrootGenerator
 {
 	public class Configuration
 	{
+		public const int DefaultHttpTimeout = 100;
+
 		public string? Arch { get; set; }
 
 		public string? Path { get; set; }
@@ -34,11 +36,19 @@ namespace SysrootGenerator
 
 		public string[]? Packages { get; set; }
 
+		public string[]? BannedPackages { get; set; }
+
+		public bool NoDefaultBannedPackages { get; set; }
+
 		public Source[]? Sources { get; set; }
 
 		public bool Purge { get; set; }
 
 		public bool PurgeCache { get; set; }
+
+		public bool NoUsrMerge { get; set; }
+
+		public int HttpTimeout { get; set; } = DefaultHttpTimeout;
 
 		public static bool TryGetFromArgs(string[] args, out Configuration? config)
 		{
@@ -69,12 +79,18 @@ namespace SysrootGenerator
 					CachePath = rootConfig.GetSection("cache-path").Value,
 					Distribution = rootConfig.GetSection("distribution").Value,
 					Packages = rootConfig.GetSection("packages").Value?.Split(','),
+					BannedPackages = rootConfig.GetSection("banned-packages").Value?.Split(','),
 					Sources = ParseSources(rootConfig.GetSection("sources").Value).ToArray(),
-					Purge = args.Any(a => a == "--purge"),
-					PurgeCache = args.Any(a => a == "--purge-cache")
+					HttpTimeout = int.TryParse(rootConfig.GetSection("http-timeout").Value, out var result)
+						? result
+						: DefaultHttpTimeout
 				};
 			}
 
+			draftConfig!.Purge = args.Any(a => a == "--purge");
+			draftConfig.PurgeCache = args.Any(a => a == "--purge-cache");
+			draftConfig.NoDefaultBannedPackages = args.Any(a => a == "--no-default-banned-packages");
+			draftConfig.NoUsrMerge = args.Any(a => a == "--no-usr-merge");
 			Logger.EnableVerbose = args.Any(a => a == "--verbose");
 
 			if (ValidateConfig(draftConfig))
@@ -147,6 +163,12 @@ namespace SysrootGenerator
 			{
 				Logger.Warning("Arch configuration is empty. Using default arch (amd64)");
 				config.Arch = "amd64";
+			}
+
+			if (config.HttpTimeout <= 0)
+			{
+				Logger.Error($"Http timeout is invalid: {config.HttpTimeout}. Must be greater than 0.");
+				return false;
 			}
 
 			if (config.Packages == null || config.Packages.Length == 0)
