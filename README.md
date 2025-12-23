@@ -6,6 +6,14 @@ A utility to generate a sysroot by downloading and extracting Debian/Ubuntu pack
 
 The tool can be configured via command-line arguments or a JSON configuration file.
 
+## Requirements
+This program relies on existing extraction programs to extract the `.deb` files. More specifically, it requires `ar`, `gzip`, `tar` `xz` and `zstd` to be installed.
+
+On Debian-based systems, you can install them with:
+```bash
+sudo apt install binutils gzip tar xz-utils zstd
+```
+
 ### Command Line Arguments
 
 | Option           | Description                                                                |

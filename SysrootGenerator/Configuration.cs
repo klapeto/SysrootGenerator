@@ -145,19 +145,19 @@ namespace SysrootGenerator
 
 			if (string.IsNullOrEmpty(config.Arch))
 			{
-				Logger.Warning("Arch configuration file is empty. Using default arch (amd64)");
+				Logger.Warning("Arch configuration is empty. Using default arch (amd64)");
 				config.Arch = "amd64";
 			}
 
 			if (config.Packages == null || config.Packages.Length == 0)
 			{
-				Logger.Error("Packages configuration file is empty.");
+				Logger.Error("Packages configuration is empty.");
 				return false;
 			}
 
 			if (config.Sources == null || config.Sources.Length == 0)
 			{
-				Logger.Error("Sources configuration file is empty.");
+				Logger.Error("Sources configuration is empty.");
 				return false;
 			}
 
@@ -179,7 +179,7 @@ namespace SysrootGenerator
 
 				if (source.Components == null || source.Components.Length == 0)
 				{
-					Logger.Error("Sections configuration file is empty. Using default section (main)");
+					Logger.Error("Components configuration is empty. Using default component (main)");
 					source.Components = ["main"];
 				}
 			}
