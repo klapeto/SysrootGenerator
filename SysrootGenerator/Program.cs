@@ -52,7 +52,12 @@ namespace SysrootGenerator
 					Directory.Delete(targetDir, true);
 				}
 
-				Directory.CreateDirectory(targetDir);
+				Directory.CreateDirectory(targetDir!);
+
+				if (configuration.PurgeCache && Directory.Exists(configuration.CachePath))
+				{
+					Directory.Delete(configuration.CachePath, true);
+				}
 
 				InstallPackages(configuration, packagesToInstall.ToArray());
 				CreateSymbolicLinks(configuration!);
@@ -74,6 +79,7 @@ namespace SysrootGenerator
 			Console.WriteLine("Options:");
 			Console.WriteLine("  --verbose               Enable verbose output.");
 			Console.WriteLine("  --purge                 Purge existing sysroot.");
+			Console.WriteLine("  --purge-cache           Purge existing caches.");
 			Console.WriteLine("  --config-file=<path>    Path to a JSON configuration file (will ignore rest of arguments).");
 			Console.WriteLine("  --path=<path>           The target directory for the sysroot.");
 			Console.WriteLine("  --arch=<arch>           The target architecture (e.g., amd64, armhf). Default: amd64.");

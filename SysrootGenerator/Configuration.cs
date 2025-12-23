@@ -38,9 +38,11 @@ namespace SysrootGenerator
 
 		public bool Purge { get; set; }
 
+		public bool PurgeCache { get; set; }
+
 		public static bool TryGetFromArgs(string[] args, out Configuration? config)
 		{
-			IConfiguration rootConfig = new ConfigurationBuilder()
+			var rootConfig = new ConfigurationBuilder()
 				.AddCommandLine(args)
 				.Build();
 
@@ -68,11 +70,12 @@ namespace SysrootGenerator
 					Distribution = rootConfig.GetSection("distribution").Value,
 					Packages = rootConfig.GetSection("packages").Value?.Split(','),
 					Sources = ParseSources(rootConfig.GetSection("sources").Value).ToArray(),
-					Purge = !string.IsNullOrEmpty(rootConfig.GetSection("purge").Value),
+					Purge = args.Any(a => a == "--purge"),
+					PurgeCache = args.Any(a => a == "--purge-cache")
 				};
 			}
 
-			Logger.EnableVerbose = !string.IsNullOrEmpty(rootConfig.GetSection("verbose").Value);
+			Logger.EnableVerbose = args.Any(a => a == "--verbose");
 
 			if (ValidateConfig(draftConfig))
 			{

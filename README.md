@@ -19,6 +19,7 @@ The tool can be configured via command-line arguments or a JSON configuration fi
 | `--config-file`  | Path to a JSON file containing the configuration.                          |
 | `--verbose`      | Enable verbose logging.                                                    |
 | `--purge`        | Purge existing sysroot.                                                    |
+| `--purge-cache`  | Purge caches.                                                              |
 | `--help`         | Show help information.                                                     |
 
 ### Examples
