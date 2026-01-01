@@ -17,6 +17,7 @@
 //
 // **********************************************************************
 
+using System.Net;
 using System.Security.Cryptography;
 
 namespace SysrootGenerator
@@ -73,6 +74,11 @@ namespace SysrootGenerator
 
 				InstallPackages(configuration, packagesToInstall.ToArray());
 
+				if (configuration.NoBins)
+				{
+					DeleteBins(configuration!);
+				}
+
 				if (!configuration.NoUsrMerge)
 				{
 					MergeUsr(configuration!);
@@ -108,10 +114,10 @@ namespace SysrootGenerator
 			Console.WriteLine("  --banned-packages=<pkg1,...>  Comma-separated list of packages to ban from installation.");
 			Console.WriteLine("  --no-default-banned-packages  Do not bypass default banned packages.");
 			Console.WriteLine("  --no-usr-merge                Do not merge usr directory to root (/bin to point to /usr/bin, etc.).");
+			Console.WriteLine("  --no-bins                     Remove binary directories.");
 			Console.WriteLine();
 			Console.WriteLine("Examples:");
-			Console.WriteLine(
-				"  SysrootGenerator --path=./sysroot --distribution=noble --packages=libc6-dev,libssl-dev --sources=\"https://archive.ubuntu.com/ubuntu/|main,universe\"");
+			Console.WriteLine("  SysrootGenerator --path=./sysroot --distribution=noble --packages=libc6-dev,libssl-dev --sources=\"https://archive.ubuntu.com/ubuntu/|main,universe\"");
 			Console.WriteLine("  SysrootGenerator --config-file=./config.json");
 		}
 
@@ -184,13 +190,14 @@ namespace SysrootGenerator
 		}
 
 		private static void ResolveDependencies(
+			string baseArchitecture,
 			Package package,
 			IReadOnlyDictionary<string, Package> availablePackages,
 			Dictionary<string, Package> packagesToInstall,
 			HashSet<string> missingPackages,
 			IReadOnlyCollection<string> bannedPackages)
 		{
-			packagesToInstall.TryAdd(package.Name, package);
+			packagesToInstall.TryAdd(package.Id, package);
 
 			foreach (var dependency in package.Depends)
 			{
@@ -200,18 +207,24 @@ namespace SysrootGenerator
 					continue;
 				}
 
-				if (!availablePackages.TryGetValue(dependency, out var dependentPackage))
+				var packageKey = $"{dependency}:{baseArchitecture}";
+				if (!availablePackages.TryGetValue(packageKey, out var dependentPackage))
 				{
-					missingPackages.Add(dependency);
+					packageKey = $"{dependency}:all";
+
+					if (!availablePackages.TryGetValue(packageKey, out dependentPackage))
+					{
+						missingPackages.Add(dependency);
+						continue;
+					}
+				}
+
+				if (!packagesToInstall.TryAdd(dependentPackage.Id, dependentPackage))
+				{
 					continue;
 				}
 
-				if (!packagesToInstall.TryAdd(dependentPackage.Name, dependentPackage))
-				{
-					continue;
-				}
-
-				ResolveDependencies(dependentPackage, availablePackages, packagesToInstall, missingPackages, bannedPackages);
+				ResolveDependencies(baseArchitecture, dependentPackage, availablePackages, packagesToInstall, missingPackages, bannedPackages);
 			}
 		}
 
@@ -225,12 +238,18 @@ namespace SysrootGenerator
 
 			foreach (var packageName in config.Packages!)
 			{
-				if (!packages.TryGetValue(packageName, out var dependentPackage))
+				var packageKey = $"{packageName}:{config.Arch}";
+				if (!packages.TryGetValue(packageKey, out var dependentPackage))
 				{
-					throw new Exception($"Dependency {packageName} not found");
+					packageKey = $"{packageName}:all";
+
+					if (!packages.TryGetValue(packageKey, out dependentPackage))
+					{
+						throw new Exception($"Dependency '{packageKey}' not found");
+					}
 				}
 
-				ResolveDependencies(dependentPackage, packages, packagesToInstall, missingPackages, bannedPackages);
+				ResolveDependencies(config.Arch!, dependentPackage, packages, packagesToInstall, missingPackages, bannedPackages);
 			}
 
 			while (missingPackages.Count > 0)
@@ -252,8 +271,9 @@ namespace SysrootGenerator
 						if (extraPackage != null)
 						{
 							Logger.Info(
-								$"Additional Package '{extraPackage.Name}' needs to be installed because it provides dependency for '{missingPackage}'");
+								$"Additional Package '{extraPackage}' needs to be installed because it provides dependency for '{missingPackage}'");
 							ResolveDependencies(
+								config.Arch!,
 								extraPackage,
 								packages,
 								packagesToInstall,
@@ -316,7 +336,17 @@ namespace SysrootGenerator
 					var uri = new Uri(
 						$"{baseUri}/dists/{config.Distribution}/{section}/binary-{config.Arch}/Packages.gz");
 					var targetPath = Path.Combine(databasesPath, $"{config.Distribution}-{section}-{config.Arch}.gz");
-					DownloadIfNotExist(uri, targetPath, timeout);
+
+					try
+					{
+						DownloadIfNotExist(uri, targetPath, timeout);
+					}
+					catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
+					{
+						Logger.Warning($"Source '{source.Uri}' does not contain section '{section}' for '{config.Arch}'. Skipping.");
+						continue;
+					}
+
 					packages.AddRange(DatabaseParser.GetPackagesFromDatabaseFile(baseUri, targetPath).ToArray());
 				}
 			}
@@ -325,9 +355,9 @@ namespace SysrootGenerator
 
 			foreach (var package in packages)
 			{
-				if (!dictionary.TryAdd(package.Name, package))
+				if (!dictionary.TryAdd(package.Id, package))
 				{
-					Logger.Warning($"Package '{package.Name}' already exists in database. Skipping.");
+					Logger.Warning($"Package '{package.Id}' already exists in database. Skipping.");
 				}
 			}
 
@@ -364,6 +394,11 @@ namespace SysrootGenerator
 
 		private static void MergeDirectory(string rootPath, string directoryName, string targetDirectory)
 		{
+			if (!Directory.Exists(Path.Combine(rootPath, targetDirectory)))
+			{
+				return;
+			}
+
 			var originalPath = Path.Combine(rootPath, directoryName);
 
 			if (Directory.Exists(originalPath))
@@ -375,11 +410,38 @@ namespace SysrootGenerator
 			File.CreateSymbolicLink(originalPath, targetDirectory);
 		}
 
+		private static void DeleteBins(Configuration config)
+		{
+			if (config.Path == "/")
+			{
+				Logger.Warning("Will not remove 'bin' directories from root ('/') directory.");
+				return;
+			}
+
+			var directories = Directory.GetDirectories(config.Path!, "*bin", SearchOption.AllDirectories);
+
+			foreach (var directory in directories)
+			{
+				if (directory.EndsWith("/bin") || directory.EndsWith("/sbin"))
+				{
+					DeleteDirectory(directory);
+				}
+			}
+		}
+
+		private static void DeleteDirectory(string path)
+		{
+			if (Directory.Exists(path))
+			{
+				Directory.Delete(path, true);
+			}
+		}
+
 		private static void MergeUsr(Configuration config)
 		{
 			MergeDirectory(config.Path!, "bin", "usr/bin");
-			MergeDirectory(config.Path!, "lib", "usr/lib");
 			MergeDirectory(config.Path!, "sbin", "usr/sbin");
+			MergeDirectory(config.Path!, "lib", "usr/lib");
 			var lib64Path = Path.Combine(config.Path!, "usr", "lib64");
 
 			if (Directory.Exists(lib64Path))

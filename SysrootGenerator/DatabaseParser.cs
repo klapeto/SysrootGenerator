@@ -34,6 +34,7 @@ namespace SysrootGenerator
 			var md5sum = string.Empty;
 			var depends = string.Empty;
 			var provides = string.Empty;
+			var architecture = string.Empty;
 
 			while (!reader.EndOfStream)
 			{
@@ -48,7 +49,7 @@ namespace SysrootGenerator
 				{
 					if (!string.IsNullOrEmpty(name))
 					{
-						yield return new Package(name, $"{baseUri}/{filename}", md5sum, depends, provides);
+						yield return new Package(name, $"{baseUri}/{filename}", md5sum, depends, provides, architecture);
 
 						name = string.Empty;
 					}
@@ -82,6 +83,9 @@ namespace SysrootGenerator
 						break;
 					case "Provides":
 						provides = rest.Trim();
+						break;
+					case "Architecture":
+						architecture = rest.Trim();
 						break;
 				}
 			}

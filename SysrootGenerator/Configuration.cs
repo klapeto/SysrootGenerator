@@ -48,6 +48,8 @@ namespace SysrootGenerator
 
 		public bool NoUsrMerge { get; set; }
 
+		public bool NoBins { get; set; }
+
 		public int HttpTimeout { get; set; } = DefaultHttpTimeout;
 
 		public static bool TryGetFromArgs(string[] args, out Configuration? config)
@@ -69,6 +71,13 @@ namespace SysrootGenerator
 					{
 						PropertyNameCaseInsensitive = true
 					});
+
+				if (draftConfig == null)
+				{
+					Logger.Error($"File is empty: '{configValue.Value}'.");
+					config = null;
+					return false;
+				}
 			}
 			else
 			{
@@ -87,10 +96,11 @@ namespace SysrootGenerator
 				};
 			}
 
-			draftConfig!.Purge = args.Any(a => a == "--purge");
+			draftConfig.Purge = args.Any(a => a == "--purge");
 			draftConfig.PurgeCache = args.Any(a => a == "--purge-cache");
 			draftConfig.NoDefaultBannedPackages = args.Any(a => a == "--no-default-banned-packages");
 			draftConfig.NoUsrMerge = args.Any(a => a == "--no-usr-merge");
+			draftConfig.NoBins = args.Any(a => a == "--no-bins");
 			Logger.EnableVerbose = args.Any(a => a == "--verbose");
 
 			if (ValidateConfig(draftConfig))
