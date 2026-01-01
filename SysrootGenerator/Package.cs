@@ -21,12 +21,13 @@ namespace SysrootGenerator
 {
 	public class Package
 	{
-		public Package(string name, string uri, string md5Sum, string depends, string provides, string architecture)
+		public Package(string name, string uri, string md5Sum, string depends, string provides, string architecture, PackageVersion version)
 		{
 			Name = name;
 			Uri = uri;
 			Md5Sum = md5Sum;
 			Architecture = architecture;
+			Version = version;
 			Depends = ParseDependencies(depends).Select(s => s.Split(':').First()).ToArray();
 			Provides = ParseDependencies(provides).Select(s => s.Split(':').First()).ToArray();
 		}
@@ -35,13 +36,15 @@ namespace SysrootGenerator
 
 		public string Md5Sum { get; }
 
-		public string[] Depends { get; }
+		public PackageDependency[] Depends { get; }
 
 		public string[] Provides { get; }
 
 		public string Uri { get; }
 
 		public string Architecture { get; }
+
+		public PackageVersion Version { get; }
 
 		public string Id => $"{Name}:{Architecture}";
 

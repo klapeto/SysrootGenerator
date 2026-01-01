@@ -30,11 +30,12 @@ namespace SysrootGenerator
 				{
 					FileName = "tar",
 					Arguments = $"-x --overwrite --file=\"{archivePath}\" --directory=\"{outputPath}\"",
-					RedirectStandardError = true,
+					RedirectStandardError = true
 				});
 
 			var error = process!.StandardError.ReadToEnd();
 			process.WaitForExit();
+
 			if (process.ExitCode != 0)
 			{
 				throw new Exception($"tar failed: '{archivePath}': {error}");
@@ -48,11 +49,12 @@ namespace SysrootGenerator
 				{
 					FileName = "ar",
 					Arguments = $"-x -f --output=\"{outputPath}\" \"{archivePath}\"",
-					RedirectStandardError = true,
+					RedirectStandardError = true
 				});
 
 			var error = process!.StandardError.ReadToEnd();
 			process.WaitForExit();
+
 			if (process.ExitCode != 0)
 			{
 				throw new Exception($"tar failed: '{archivePath}': {error}");
@@ -67,11 +69,12 @@ namespace SysrootGenerator
 					FileName = "xz",
 					WorkingDirectory = Path.GetDirectoryName(outputFile),
 					Arguments = $"-d -f \"{Path.GetFullPath(file)}\"",
-					RedirectStandardError = true,
+					RedirectStandardError = true
 				});
 
 			var error = process!.StandardError.ReadToEnd();
 			process.WaitForExit();
+
 			if (process.ExitCode != 0)
 			{
 				throw new Exception($"xz failed: '{file}': {error}");
@@ -86,11 +89,12 @@ namespace SysrootGenerator
 					FileName = "gzip",
 					WorkingDirectory = Path.GetDirectoryName(outputFile),
 					Arguments = $"-d -f \"{Path.GetFullPath(file)}\"",
-					RedirectStandardError = true,
+					RedirectStandardError = true
 				});
 
 			var error = process!.StandardError.ReadToEnd();
 			process.WaitForExit();
+
 			if (process.ExitCode != 0)
 			{
 				throw new Exception($"gzip failed: '{file}': {error}");
@@ -102,13 +106,12 @@ namespace SysrootGenerator
 			var process = Process.Start(
 				new ProcessStartInfo
 				{
-					FileName = "zstd",
-					Arguments = $"-d -f -o \"{outputFile}\" \"{file}\"",
-					RedirectStandardError = true,
+					FileName = "zstd", Arguments = $"-d -f -o \"{outputFile}\" \"{file}\"", RedirectStandardError = true
 				});
 
 			var error = process!.StandardError.ReadToEnd();
 			process.WaitForExit();
+
 			if (process.ExitCode != 0)
 			{
 				throw new Exception($"zstd failed: '{file}': {error}");

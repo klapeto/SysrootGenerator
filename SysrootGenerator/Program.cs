@@ -208,6 +208,7 @@ namespace SysrootGenerator
 				}
 
 				var packageKey = $"{dependency}:{baseArchitecture}";
+
 				if (!availablePackages.TryGetValue(packageKey, out var dependentPackage))
 				{
 					packageKey = $"{dependency}:all";
@@ -224,7 +225,13 @@ namespace SysrootGenerator
 					continue;
 				}
 
-				ResolveDependencies(baseArchitecture, dependentPackage, availablePackages, packagesToInstall, missingPackages, bannedPackages);
+				ResolveDependencies(
+					baseArchitecture,
+					dependentPackage,
+					availablePackages,
+					packagesToInstall,
+					missingPackages,
+					bannedPackages);
 			}
 		}
 
@@ -239,6 +246,7 @@ namespace SysrootGenerator
 			foreach (var packageName in config.Packages!)
 			{
 				var packageKey = $"{packageName}:{config.Arch}";
+
 				if (!packages.TryGetValue(packageKey, out var dependentPackage))
 				{
 					packageKey = $"{packageName}:all";
@@ -249,7 +257,13 @@ namespace SysrootGenerator
 					}
 				}
 
-				ResolveDependencies(config.Arch!, dependentPackage, packages, packagesToInstall, missingPackages, bannedPackages);
+				ResolveDependencies(
+					config.Arch!,
+					dependentPackage,
+					packages,
+					packagesToInstall,
+					missingPackages,
+					bannedPackages);
 			}
 
 			while (missingPackages.Count > 0)
@@ -343,7 +357,8 @@ namespace SysrootGenerator
 					}
 					catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
 					{
-						Logger.Warning($"Source '{source.Uri}' does not contain section '{section}' for '{config.Arch}'. Skipping.");
+						Logger.Warning(
+							$"Source '{source.Uri}' does not contain section '{section}' for '{config.Arch}'. Skipping.");
 						continue;
 					}
 
