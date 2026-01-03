@@ -50,6 +50,8 @@ namespace SysrootGenerator
 
 		public bool NoBins { get; set; }
 
+		public bool NoDependencies { get; set; }
+
 		public int HttpTimeout { get; set; } = DefaultHttpTimeout;
 
 		public static bool TryGetFromArgs(string[] args, out Configuration? config)
@@ -101,6 +103,7 @@ namespace SysrootGenerator
 			draftConfig.NoDefaultBannedPackages = args.Any(a => a == "--no-default-banned-packages");
 			draftConfig.NoUsrMerge = args.Any(a => a == "--no-usr-merge");
 			draftConfig.NoBins = args.Any(a => a == "--no-bins");
+			draftConfig.NoDependencies = args.Any(a => a == "--no-dependencies");
 			Logger.EnableVerbose = args.Any(a => a == "--verbose");
 
 			if (ValidateConfig(draftConfig))

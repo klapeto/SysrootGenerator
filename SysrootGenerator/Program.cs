@@ -115,6 +115,7 @@ namespace SysrootGenerator
 			Console.WriteLine("  --no-default-banned-packages  Do not bypass default banned packages.");
 			Console.WriteLine("  --no-usr-merge                Do not merge usr directory to root (/bin to point to /usr/bin, etc.).");
 			Console.WriteLine("  --no-bins                     Remove binary directories.");
+			Console.WriteLine("  --no-dependencies             Do not resolve and install dependencies.");
 			Console.WriteLine();
 			Console.WriteLine("Examples:");
 			Console.WriteLine("  SysrootGenerator --path=./sysroot --distribution=noble --packages=libc6-dev,libssl-dev --sources=\"https://archive.ubuntu.com/ubuntu/|main,universe\"");
@@ -247,6 +248,12 @@ namespace SysrootGenerator
 					{
 						throw new Exception($"Dependency '{packageKey}' not found");
 					}
+				}
+
+				if (config.NoDependencies)
+				{
+					packagesToInstall.TryAdd(dependentPackage.Id, dependentPackage);
+					continue;
 				}
 
 				ResolveDependencies(config.Arch!, dependentPackage, packages, packagesToInstall, missingPackages, bannedPackages);
@@ -442,6 +449,7 @@ namespace SysrootGenerator
 			MergeDirectory(config.Path!, "bin", "usr/bin");
 			MergeDirectory(config.Path!, "sbin", "usr/sbin");
 			MergeDirectory(config.Path!, "lib", "usr/lib");
+			MergeDirectory(config.Path!, "include", "usr/include");
 			var lib64Path = Path.Combine(config.Path!, "usr", "lib64");
 
 			if (Directory.Exists(lib64Path))

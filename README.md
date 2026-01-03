@@ -30,7 +30,8 @@ sudo apt install binutils gzip tar xz-utils zstd
 | `--purge`                      | Purge existing sysroot.                                                                                                           |
 | `--purge-cache`                | Purge caches.                                                                                                                     |
 | `--no-usr-merge`               | Do not merge `/usr` directory to root (e.g. normally `/lib` would be merged with `/usr/lib` and `/lib` will point to `/usr/lib`). |
-| `--no-bins`                    | Remove binary directories                                                                                                         |
+| `--no-bins`                    | Remove binary directories.                                                                                                        |
+| `--no-dependencies`            | Do not resolve and install dependencies.                                                                                          |
 | `--http-timeout`               | The timeout for HTTP requests in seconds. Default: `100`.                                                                         |
 | `--banned-packages`            | Comma-separated list of packages to ban from installation.                                                                        |
 | `--no-default-banned-packages` | Do not bypass default banned packages (e.g., linux-image, linux-headers).                                                         |
