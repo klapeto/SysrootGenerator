@@ -99,26 +99,27 @@ namespace SysrootGenerator
 			Console.WriteLine("Usage: SysrootGenerator [options]");
 			Console.WriteLine();
 			Console.WriteLine("Options:");
-			Console.WriteLine("  --config-file=<path>          Path to a JSON configuration file (will ignore rest of arguments).");
-			Console.WriteLine("  --path=<path>                 The target directory for the sysroot.");
-			Console.WriteLine("  --arch=<arch>                 The target architecture (e.g., amd64, armhf). Default: amd64.");
-			Console.WriteLine("  --distribution=<dist>         The distribution name (e.g., bookworm, focal).");
-			Console.WriteLine("  --cache-path=<path>           Path for downloaded packages and metadata. Default: <path>/tmp.");
-			Console.WriteLine("  --packages=<pkg1,...>         Comma-separated list of packages to install.");
-			Console.WriteLine("  --sources=\"<src1|comp1,comp2 ...>\" ");
-			Console.WriteLine("                                Space-separated list of sources in format: 'uri|component1,component2'.");
+			Console.WriteLine("  --config-file <path>          Path to a JSON configuration file (will ignore rest of arguments).");
+			Console.WriteLine("  --path <path>                 The target directory for the sysroot.");
+			Console.WriteLine("  --arch <arch>                 The target architecture (e.g., amd64, armhf). Default: amd64.");
+			Console.WriteLine("  --distribution <dist>         The distribution name (e.g., bookworm, focal).");
+			Console.WriteLine("  --cache-path <path>           Path for downloaded packages and metadata. Default: <path>/tmp.");
+			Console.WriteLine("  --packages <pkg1,...>         Comma-separated list of packages to install.");
+			Console.WriteLine("  --sources \"<src1|comp1,comp2 ...>\" ");
+			Console.WriteLine("                                Space-separated list of sources in format: \"uri|component1,component2\".");
 			Console.WriteLine("  --verbose                     Enable verbose output.");
 			Console.WriteLine("  --purge                       Purge existing sysroot.");
 			Console.WriteLine("  --purge-cache                 Purge existing caches.");
-			Console.WriteLine("  --http-timeout=<seconds>      The timeout for HTTP requests. Default: 100 seconds.");
-			Console.WriteLine("  --banned-packages=<pkg1,...>  Comma-separated list of packages to ban from installation.");
+			Console.WriteLine("  --http-timeout <seconds>      The timeout for HTTP requests. Default: 100 seconds.");
+			Console.WriteLine("  --banned-packages <pkg1,...>  Comma-separated list of packages to ban from installation.");
 			Console.WriteLine("  --no-default-banned-packages  Do not bypass default banned packages.");
 			Console.WriteLine("  --no-usr-merge                Do not merge usr directory to root (/bin to point to /usr/bin, etc.).");
 			Console.WriteLine("  --no-bins                     Remove binary directories.");
 			Console.WriteLine("  --no-dependencies             Do not resolve and install dependencies.");
+			Console.WriteLine("  --store-install-state         Store installation state in a file in the sysroot to avoid reinstalling packages.");
 			Console.WriteLine();
 			Console.WriteLine("Examples:");
-			Console.WriteLine("  SysrootGenerator --path=./sysroot --distribution=noble --packages=libc6-dev,libssl-dev --sources=\"https://archive.ubuntu.com/ubuntu/|main,universe\"");
+			Console.WriteLine("  SysrootGenerator --path=./sysroot --distribution=noble --packages=libc6-dev,libssl-dev --sources \"https://archive.ubuntu.com/ubuntu/|main,universe\"");
 			Console.WriteLine("  SysrootGenerator --config-file=./config.json");
 		}
 

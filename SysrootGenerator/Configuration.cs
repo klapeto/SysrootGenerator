@@ -18,7 +18,8 @@
 // **********************************************************************
 
 using System.Text.Json;
-using Microsoft.Extensions.Configuration;
+using System.Text.Json.Serialization;
+using CommandLine;
 
 namespace SysrootGenerator
 {
@@ -26,49 +27,78 @@ namespace SysrootGenerator
 	{
 		public const int DefaultHttpTimeout = 100;
 
+		[JsonPropertyName("arch")]
 		public string? Arch { get; set; }
 
+		[JsonPropertyName("path")]
 		public string? Path { get; set; }
 
+		[JsonPropertyName("distribution")]
 		public string? Distribution { get; set; }
 
+		[JsonPropertyName("cachePath")]
 		public string? CachePath { get; set; }
 
+		[JsonPropertyName("packages")]
 		public string[]? Packages { get; set; }
 
+		[JsonPropertyName("bannedPackages")]
 		public string[]? BannedPackages { get; set; }
 
+		[JsonPropertyName("noDefaultBannedPackages")]
 		public bool NoDefaultBannedPackages { get; set; }
 
+		[JsonPropertyName("sources")]
 		public Source[]? Sources { get; set; }
 
+		[JsonPropertyName("purge")]
 		public bool Purge { get; set; }
 
+		[JsonPropertyName("purgeCache")]
 		public bool PurgeCache { get; set; }
 
+		[JsonPropertyName("noUsrMerge")]
 		public bool NoUsrMerge { get; set; }
 
+		[JsonPropertyName("noBins")]
 		public bool NoBins { get; set; }
 
+		[JsonPropertyName("noDependencies")]
 		public bool NoDependencies { get; set; }
 
+		[JsonPropertyName("httpTimeout")]
 		public int HttpTimeout { get; set; } = DefaultHttpTimeout;
 
+		[JsonPropertyName("storeInstallState")]
 		public bool StoreInstallState { get; set; }
+
+		[JsonPropertyName("configFile")]
+		public string? ConfigFile { get; set; }
 
 		public static bool TryGetFromArgs(string[] args, out Configuration? config)
 		{
-			var rootConfig = new ConfigurationBuilder()
-				.AddCommandLine(args)
-				.Build();
+			var parser = new Parser(with =>
+			{
+				with.AutoHelp = false;
+				with.AutoVersion = false;
+			});
+			var parserResult = parser.ParseArguments<CommandLineOptions>(args);
 
-			var configValue = rootConfig.GetSection("config-file");
+			if (parserResult.Tag == ParserResultType.NotParsed)
+			{
+				config = null;
+
+				// Logger.Error(string.Join(parserResult.Errors));
+				return false;
+			}
+
+			var mappedConfig = parserResult.MapResult(FromCommandLineOptions, _ => new Configuration());
 
 			Configuration? draftConfig;
 
-			if (!string.IsNullOrEmpty(configValue.Value))
+			if (!string.IsNullOrEmpty(mappedConfig.ConfigFile))
 			{
-				using var stream = File.OpenRead(configValue.Value);
+				using var stream = File.OpenRead(mappedConfig.ConfigFile);
 				draftConfig = JsonSerializer.Deserialize<Configuration>(
 					stream,
 					new JsonSerializerOptions
@@ -78,36 +108,17 @@ namespace SysrootGenerator
 
 				if (draftConfig == null)
 				{
-					Logger.Error($"File is empty: '{configValue.Value}'.");
+					Logger.Error($"File is empty: '{mappedConfig.ConfigFile}'.");
 					config = null;
 					return false;
 				}
 			}
 			else
 			{
-				draftConfig = new Configuration
-				{
-					Path = rootConfig.GetSection("path").Value,
-					Arch = rootConfig.GetSection("arch").Value,
-					CachePath = rootConfig.GetSection("cache-path").Value,
-					Distribution = rootConfig.GetSection("distribution").Value,
-					Packages = rootConfig.GetSection("packages").Value?.Split(','),
-					BannedPackages = rootConfig.GetSection("banned-packages").Value?.Split(','),
-					Sources = ParseSources(rootConfig.GetSection("sources").Value).ToArray(),
-					HttpTimeout = int.TryParse(rootConfig.GetSection("http-timeout").Value, out var result)
-						? result
-						: DefaultHttpTimeout
-				};
+				draftConfig = mappedConfig;
 			}
 
-			draftConfig.Purge = args.Any(a => a == "--purge");
-			draftConfig.PurgeCache = args.Any(a => a == "--purge-cache");
-			draftConfig.NoDefaultBannedPackages = args.Any(a => a == "--no-default-banned-packages");
-			draftConfig.NoUsrMerge = args.Any(a => a == "--no-usr-merge");
-			draftConfig.NoBins = args.Any(a => a == "--no-bins");
-			draftConfig.NoDependencies = args.Any(a => a == "--no-dependencies");
-			draftConfig.StoreInstallState = args.Any(a => a == "--store-install-state");
-			Logger.EnableVerbose = args.Any(a => a == "--verbose");
+			Logger.EnableVerbose = parserResult.Value.Verbose;
 
 			if (ValidateConfig(draftConfig))
 			{
@@ -119,33 +130,7 @@ namespace SysrootGenerator
 			return false;
 		}
 
-		private static IEnumerable<Source> ParseSources(string? args)
-		{
-			if (string.IsNullOrEmpty(args))
-			{
-				yield break;
-			}
-
-			foreach (var arg in args.Split(' '))
-			{
-				var parts = arg.Trim().Split('|');
-
-				if (parts.Length != 1 && parts.Length != 2)
-				{
-					throw new ArgumentException(
-						$"Invalid source argument: '{arg}'. It needs to be in format 'uri1|component1,component2'.");
-				}
-
-				var uri = parts.First();
-				var components = parts.Length == 2 ? parts.Last().Split(',').Select(s => s.Trim()).ToArray() : null;
-				yield return new Source
-				{
-					Uri = uri, Components = components
-				};
-			}
-		}
-
-		private static bool ValidateConfig(Configuration? config)
+		public static bool ValidateConfig(Configuration? config)
 		{
 			if (config == null)
 			{
@@ -223,6 +208,55 @@ namespace SysrootGenerator
 			}
 
 			return true;
+		}
+
+		private static Configuration FromCommandLineOptions(CommandLineOptions options)
+		{
+			return new Configuration
+			{
+				Arch = options.Arch,
+				Path = options.Path,
+				Distribution = options.Distribution,
+				CachePath = options.CachePath,
+				Packages = options.Packages?.ToArray(),
+				BannedPackages = options.BannedPackages?.ToArray(),
+				NoDefaultBannedPackages = options.NoDefaultBannedPackages,
+				Sources = ParseSources(options.Sources).ToArray(),
+				Purge = options.Purge,
+				PurgeCache = options.PurgeCache,
+				NoUsrMerge = options.NoUsrMerge,
+				NoBins = options.NoBins,
+				NoDependencies = options.NoDependencies,
+				HttpTimeout = options.HttpTimeout,
+				StoreInstallState = options.StoreInstallState,
+				ConfigFile = options.ConfigFile
+			};
+		}
+
+		private static IEnumerable<Source> ParseSources(string? args)
+		{
+			if (string.IsNullOrEmpty(args))
+			{
+				yield break;
+			}
+
+			foreach (var arg in args.Split(' '))
+			{
+				var parts = arg.Trim().Split('|');
+
+				if (parts.Length != 1 && parts.Length != 2)
+				{
+					throw new ArgumentException(
+						$"Invalid source argument: '{arg}'. It needs to be in format 'uri1|component1,component2'.");
+				}
+
+				var uri = parts.First();
+				var components = parts.Length == 2 ? parts.Last().Split(',').Select(s => s.Trim()).ToArray() : null;
+				yield return new Source
+				{
+					Uri = uri, Components = components
+				};
+			}
 		}
 	}
 }

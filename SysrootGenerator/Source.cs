@@ -17,12 +17,16 @@
 //
 // **********************************************************************
 
+using System.Text.Json.Serialization;
+
 namespace SysrootGenerator
 {
 	public class Source
 	{
+		[JsonPropertyName("uri")]
 		public string? Uri { get; set; }
 
+		[JsonPropertyName("components")]
 		public string[]? Components { get; set; }
 	}
 }
