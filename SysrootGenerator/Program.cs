@@ -124,6 +124,20 @@ namespace SysrootGenerator
 
 		private static void InstallPackages(Configuration config, Package[] packages)
 		{
+			var alreadyInstalledPackages = new HashSet<string>();
+			var stateFile = Path.Combine(config.Path!, "sysroot-install-state");
+			if (config.StoreInstallState)
+			{
+				Logger.Verbose($"Using installation state.");
+				if (File.Exists(stateFile))
+				{
+					alreadyInstalledPackages = File.ReadAllLines(stateFile)
+						.Select(s => s.Trim())
+						.ToHashSet();
+					Logger.Verbose($"Installation state found in '{stateFile}'. Packages already installed: {string.Join(',', alreadyInstalledPackages)}");
+				}
+			}
+
 			var packagesPath = Path.Combine(config.CachePath!, "packages");
 			Directory.CreateDirectory(packagesPath);
 
@@ -139,6 +153,12 @@ namespace SysrootGenerator
 
 			foreach (var package in packages)
 			{
+				if (alreadyInstalledPackages.Contains(package.Id))
+				{
+					Logger.Info($"Package '{package.Name}' is already installed. Skipping.");
+					continue;
+				}
+
 				Logger.Info($"Installing package: {package.Name} ({i++}/{total})");
 
 				if (Directory.Exists(tmpDir))
@@ -187,6 +207,11 @@ namespace SysrootGenerator
 				}
 
 				ArchiveHelpers.ExtractTar(tarFile, config.Path!);
+
+				if (config.StoreInstallState)
+				{
+					File.AppendAllLines(stateFile, [package.Id]);
+				}
 			}
 		}
 
@@ -364,7 +389,7 @@ namespace SysrootGenerator
 			{
 				if (!dictionary.TryAdd(package.Id, package))
 				{
-					Logger.Warning($"Package '{package.Id}' already exists in database. Skipping.");
+					Logger.Verbose($"Package '{package.Id}' already exists in database. Skipping.");
 				}
 			}
 
@@ -379,22 +404,42 @@ namespace SysrootGenerator
 			{
 				var fileInfo = new FileInfo(file);
 
+				var targetFile = Path.Combine(target, fileInfo.Name);
+
 				if (fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
 				{
-					File.CreateSymbolicLink(Path.Combine(target, fileInfo.Name), fileInfo.LinkTarget!);
+					// ignore existing that may have been created by a previous run
+					if (File.Exists(targetFile))
+					{
+						continue;
+					}
+
+					if (Directory.Exists(targetFile))
+					{
+						continue;
+					}
+
+					File.CreateSymbolicLink(targetFile, fileInfo.LinkTarget!);
 					continue;
 				}
 
 				if (fileInfo.Attributes.HasFlag(FileAttributes.Normal))
 				{
-					fileInfo.MoveTo(Path.Combine(target, fileInfo.Name));
+					// ignore existing that may have been created by a previous run
+					// also this may be the same since we may iterate via a link
+					if (File.Exists(targetFile))
+					{
+						continue;
+					}
+
+					fileInfo.MoveTo(targetFile);
 					continue;
 				}
 
 				if (fileInfo.Attributes.HasFlag(FileAttributes.Directory))
 				{
-					Directory.CreateDirectory(Path.Combine(target, fileInfo.Name));
-					MoveDirectory(fileInfo, Path.Combine(target, fileInfo.Name));
+					Directory.CreateDirectory(targetFile);
+					MoveDirectory(fileInfo, targetFile);
 				}
 			}
 		}

@@ -54,6 +54,8 @@ namespace SysrootGenerator
 
 		public int HttpTimeout { get; set; } = DefaultHttpTimeout;
 
+		public bool StoreInstallState { get; set; }
+
 		public static bool TryGetFromArgs(string[] args, out Configuration? config)
 		{
 			var rootConfig = new ConfigurationBuilder()
@@ -104,6 +106,7 @@ namespace SysrootGenerator
 			draftConfig.NoUsrMerge = args.Any(a => a == "--no-usr-merge");
 			draftConfig.NoBins = args.Any(a => a == "--no-bins");
 			draftConfig.NoDependencies = args.Any(a => a == "--no-dependencies");
+			draftConfig.StoreInstallState = args.Any(a => a == "--store-install-state");
 			Logger.EnableVerbose = args.Any(a => a == "--verbose");
 
 			if (ValidateConfig(draftConfig))
