@@ -23,6 +23,58 @@ namespace SysrootGenerator
 {
 	public static class ArchiveHelpers
 	{
+		private static bool? _dpkgInstalled;
+
+		public static void ExtractDeb(string debPath, string targetDir, string tmpDir)
+		{
+			_dpkgInstalled ??= File.Exists("/usr/bin/dpkg-deb") || File.Exists("/bin/dpkg-deb");
+
+			if (_dpkgInstalled.Value)
+			{
+				var process = Process.Start(
+					new ProcessStartInfo
+					{
+						FileName = "dpkg-deb",
+						Arguments = $"-x \"{debPath}\" \"{targetDir}\"",
+						RedirectStandardError = true,
+					});
+
+				var error = process!.StandardError.ReadToEnd();
+				process.WaitForExit();
+				if (process.ExitCode != 0)
+				{
+					throw new Exception($"tar failed: '{debPath}': {error}");
+				}
+			}
+			else
+			{
+				var tarFile = Path.Combine(tmpDir, "data.tar");
+				ExtractAr(debPath, tmpDir);
+				var file = Directory.GetFiles(tmpDir, "*", SearchOption.AllDirectories)
+					.FirstOrDefault(f => Path.GetFileName(f).StartsWith("data.tar"));
+
+				if (file == null)
+				{
+					throw new Exception($"Package '{debPath}' could not find: data.xx.yy file");
+				}
+
+				if (file.EndsWith(".zst"))
+				{
+					DecompressZstd(file, tarFile);
+				}
+				else if (file.EndsWith(".xz"))
+				{
+					DecompressXz(file, tarFile);
+				}
+				else if (file.EndsWith(".gz"))
+				{
+					DecompressGzip(file, tarFile);
+				}
+
+				ExtractTar(tarFile, targetDir);
+			}
+		}
+
 		public static void ExtractTar(string archivePath, string outputPath)
 		{
 			var process = Process.Start(

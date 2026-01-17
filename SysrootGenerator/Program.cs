@@ -24,8 +24,7 @@ namespace SysrootGenerator
 {
 	internal static class Program
 	{
-		private static readonly HttpClientHandler Handler = new();
-
+		private static readonly HttpClient HttpClient = new();
 		private static readonly string[] DefaultBannedPackages =
 		[
 			"linux-base", "linux-image-", "linux-headers-", "linux-modules-", "linux-firmware"
@@ -47,7 +46,9 @@ namespace SysrootGenerator
 					return 1;
 				}
 
-				var packages = AptUpdate(configuration!);
+				HttpClient.Timeout = TimeSpan.FromSeconds(configuration!.HttpTimeout);
+
+				var packages = AptUpdate(configuration);
 
 				var targetDir = configuration!.Path;
 
@@ -146,9 +147,6 @@ namespace SysrootGenerator
 
 			using var md5 = MD5.Create();
 
-			var tarFile = Path.Combine(tmpDir, "data.tar");
-
-			var timeout = TimeSpan.FromSeconds(config.HttpTimeout);
 			var i = 0;
 			var total = packages.Length;
 
@@ -171,7 +169,7 @@ namespace SysrootGenerator
 
 				var uri = new Uri(package.Uri);
 				var debPath = Path.Combine(packagesPath, $"{uri.Segments.Last()}");
-				DownloadIfNotExist(uri, debPath, timeout);
+				DownloadIfNotExist(uri, debPath);
 
 				using (var debStream = File.OpenRead(debPath))
 				{
@@ -185,29 +183,7 @@ namespace SysrootGenerator
 					}
 				}
 
-				ArchiveHelpers.ExtractAr(debPath, tmpDir);
-				var file = Directory.GetFiles(tmpDir, "*", SearchOption.AllDirectories)
-					.FirstOrDefault(f => Path.GetFileName(f).StartsWith("data.tar"));
-
-				if (file == null)
-				{
-					throw new Exception($"Package '{package.Name}' could not find: data.xx.yy file");
-				}
-
-				if (file.EndsWith(".zst"))
-				{
-					ArchiveHelpers.DecompressZstd(file, tarFile);
-				}
-				else if (file.EndsWith(".xz"))
-				{
-					ArchiveHelpers.DecompressXz(file, tarFile);
-				}
-				else if (file.EndsWith(".gz"))
-				{
-					ArchiveHelpers.DecompressGzip(file, tarFile);
-				}
-
-				ArchiveHelpers.ExtractTar(tarFile, config.Path!);
+				ArchiveHelpers.ExtractDeb(debPath, config.Path!, tmpDir);
 
 				if (config.StoreInstallState)
 				{
@@ -327,7 +303,7 @@ namespace SysrootGenerator
 			return packagesToInstall.Values;
 		}
 
-		private static void DownloadIfNotExist(Uri uri, string path, TimeSpan timeout)
+		private static void DownloadIfNotExist(Uri uri, string path)
 		{
 			if (File.Exists(path))
 			{
@@ -336,10 +312,8 @@ namespace SysrootGenerator
 			}
 
 			Logger.Verbose($"Downloading '{uri}' to '{path}'");
-			using var client = new HttpClient(Handler, false);
-			client.Timeout = timeout;
 
-			var response = client.GetAsync(uri).Result;
+			var response = HttpClient.GetAsync(uri).Result;
 			response.EnsureSuccessStatusCode();
 
 			using var stream = new FileStream(path, FileMode.Create, FileAccess.Write);
@@ -372,7 +346,7 @@ namespace SysrootGenerator
 
 					try
 					{
-						DownloadIfNotExist(uri, targetPath, timeout);
+						DownloadIfNotExist(uri, targetPath);
 					}
 					catch (HttpRequestException e) when (e.StatusCode == HttpStatusCode.NotFound)
 					{
