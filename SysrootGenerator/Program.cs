@@ -84,6 +84,8 @@ namespace SysrootGenerator
 				{
 					MergeUsr(configuration!);
 				}
+
+				FixSymlinks(configuration.Path!);
 			}
 			catch (Exception ex)
 			{
@@ -475,6 +477,53 @@ namespace SysrootGenerator
 			if (Directory.Exists(lib64Path))
 			{
 				MergeDirectory(config.Path!, "lib64", "usr/lib64");
+			}
+		}
+
+		private static void FixSymlinks(string path)
+		{
+			var rootPath = Path.GetFullPath(path);
+
+			var allFiles = Directory.GetFileSystemEntries(rootPath, "*", SearchOption.AllDirectories);
+
+			foreach (var entry in allFiles)
+			{
+				var fileInfo = new FileInfo(entry);
+
+				if (!fileInfo.Attributes.HasFlag(FileAttributes.ReparsePoint))
+				{
+					continue;
+				}
+
+				var linkTarget = fileInfo.LinkTarget;
+
+				if (string.IsNullOrEmpty(linkTarget))
+				{
+					continue;
+				}
+
+				if (!Path.IsPathRooted(linkTarget))
+				{
+					continue;
+				}
+
+				var resolvedTarget = Path.GetFullPath(linkTarget.TrimStart('/'), rootPath);
+
+				var linkDirectory = Path.GetDirectoryName(entry);
+				var relativePath = Path.GetRelativePath(linkDirectory!, resolvedTarget);
+
+				Logger.Verbose($"Converting symlink '{entry}': '{linkTarget}' -> '{relativePath}'");
+
+				File.Delete(entry);
+
+				if (Directory.Exists(resolvedTarget))
+				{
+					Directory.CreateSymbolicLink(entry, relativePath);
+				}
+				else
+				{
+					File.CreateSymbolicLink(entry, relativePath);
+				}
 			}
 		}
 	}

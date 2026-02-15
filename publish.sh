@@ -1,0 +1,2 @@
+#!/bin/sh
+dotnet publish --configuration=Release --self-contained --runtime=linux-x64 -p:PublishReadyToRun=True -p:PublishSingleFile=True -p:IncludeNativeLibrariesForSelfExtract=True -p:UseAppHost=true --output=./Out ./SysrootGenerator/SysrootGenerator.csproj 
